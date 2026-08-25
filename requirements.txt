@@ -1,0 +1,18 @@
+torch>=2.5
+torchvision
+transformers>=4.50
+peft>=0.14
+datasets>=3.0
+accelerate
+scikit-learn
+pyyaml
+pillow
+numpy
+pandas
+matplotlib
+seaborn
+tqdm
+pytest
+safetensors
+huggingface_hub
+kornia   # only needed by third_party/aug_utils_train (official NTIRE distortion reference)
