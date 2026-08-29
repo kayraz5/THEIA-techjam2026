@@ -696,12 +696,20 @@ python predict.py --image_dir <dir> --output preds.json                        #
   after extraction.
 
 ### 12.4 Experiment index
-25 tracked issues. Closed/resolved: #3 (format harmonization, null), #4 (regularization, defaults
-optimal), #5 (normalization, none wins), #6 (focal, γ=5 marginal), #7 (gate probe, kills #2), #8 (clean
-draw, hurts), #9 (data size, flat), #10 (generator diversity, **biggest win**), #11 (TTA, rejected), #12
-(CLIP baseline, 0.9766), #15 (external eval, the real weakness), #17 (SID-only ship candidate), #18 (GAN
-arm, confounded), **#21/#23 (real-source screening × resolution fix — produced the shipped arm)**.
-Deferred on measurability:
-#1 (LoRA, 22 days), #13 (resolution), #14 (attention pooling), #2 (ensemble, killed by #7). Blocked on
-data access: #19, #20, #22. Outstanding: #24 (official NTIRE distortion backend), #25 (RRDataset downloaded,
-not yet scored).
+25 tracked issues, all resolved. Each carries a results comment on GitHub.
+
+**Ran and reported:** #3 (format harmonization — null) · #4 (regularization — defaults optimal) ·
+#5 (normalization — none wins) · #6 (focal — γ=5 marginal) · #7 (gate probe — kills #2) · #8 (clean draw —
+hurts) · #9 (data size — flat) · #10 (generator diversity — **biggest win**) · #11 (TTA — rejected) ·
+#12 (CLIP baseline — 0.9766) · #15 (external eval — found the real weakness) · #17 (SID-only candidate) ·
+#18 (GAN arm — confounded) · **#21/#23 (real-source × resolution 2×2 — produced the shipped arm)** ·
+#19 (10-source screening — **9 of 10 neutral-to-harmful; mix is at a local optimum**) ·
+#20 (MJv4 vs MJv5 — **falsified the vintage theory**) · #22 (pixel diffusion — Hourglass 0.932 → 0.979 at a
+price) · #24 (official NTIRE pipeline — worse OOD; also *unrunnable* until we fixed kornia + numpy≥2) ·
+#25 (RRDataset — second external set, ship arm confirmed).
+
+**Closed on measurement rather than executed**, each for a stated reason (§6.2): #1 (LoRA — benchmarked at
+~22 days) · #2 (ensemble — killed by #7's pre-check) · #13 (resolution — unmeasurable on a saturated
+benchmark) · #14 (attention pooling — breaks the feature cache; no headroom to justify it).
+
+**Still gated externally:** DINOv3 (Hugging Face gated repo) and Chameleon (academic-only request).
