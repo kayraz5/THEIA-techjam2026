@@ -1,0 +1,31 @@
+{
+ "ablation": "s_all",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/VQDM/",
+  "/Imagen/",
+  "/MAGE/",
+  "/MAE/",
+  "/VQGAN/",
+  "/VQVAE/",
+  "/ffhq/",
+  "/celebahq/",
+  "/afhq/",
+  "/church/"
+ ],
+ "n_train_features": 64750,
+ "clean_auc_full_set": 0.9972204645739333,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9965827141276191,
+ "clean_auc_alt_real": 0.9926493506493507,
+ "shortcut_gap_clean": 0.003933363478268448,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.9883916202976389,
+ "max_delta": 0.008191093829980178,
+ "mean_degraded_auc": 0.9943362162652196,
+ "best_robust_val_auc": 0.9902887612089962
+}

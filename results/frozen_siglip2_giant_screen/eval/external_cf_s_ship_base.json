@@ -1,0 +1,12 @@
+{
+ "name": "cf_s_ship_base",
+ "checkpoint": "results/frozen_siglip2_giant_screen/head_ablation_s_ship_base.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9917310936486194,
+ "err": 0.008268906351380556,
+ "acc@0.5": 0.9521149241819633,
+ "bal_acc@0.5": 0.9510737509912768,
+ "majority_baseline": 0.5677041766427241
+}

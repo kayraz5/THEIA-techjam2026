@@ -1,0 +1,22 @@
+{
+ "ablation": "s_real_church",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/church/"
+ ],
+ "n_train_features": 42000,
+ "clean_auc_full_set": 0.9990655540741684,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9988701177089703,
+ "clean_auc_alt_real": 0.9980145148968679,
+ "shortcut_gap_clean": 0.0008556028121023962,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.9955224821148035,
+ "max_delta": 0.0033476355941667313,
+ "mean_degraded_auc": 0.9977043836874312,
+ "best_robust_val_auc": 0.9957668108685391
+}

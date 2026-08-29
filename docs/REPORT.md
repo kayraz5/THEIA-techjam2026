@@ -272,17 +272,75 @@ with label (validation untouched). Result: **+0.0007. A null result.**
 We report this because it's the honest shape of the work — the plausible hypothesis was wrong, and
 finding that out is what forced the per-source screening in §7.1, which found the actual cause.
 
-### 7.3 The cause: generator vintage, not file format
+### 7.3 The cause: source selection — and the explanation we had to retract
 
-Dropping DALL-E 2 alone recovered nearly the whole gap. The likely mechanism is **vintage mismatch**:
-DALL-E 2 is 2022; the validation fakes are DALL-E 3 (2023). Training on an obsolete generator teaches
-artifacts that modern generators no longer produce — and actively costs performance.
-
-The converse also holds and is the second-biggest win: **adding one modern, high-tier generator (MJv5)
-beat tripling the training volume.** 0.9949 → 0.9994 from 3,000 MJv5 images, versus +0.0004 from
-8,000 extra SID_Set images.
+Dropping DALL-E 2 alone recovered nearly the whole gap. The converse also held, and was the
+second-biggest win: **adding one generator (MJv5, 3,000 images) beat tripling the training volume** —
+0.9949 → 0.9994, versus +0.0004 from 8,000 extra SID_Set images.
 
 > **Slide-ready framing:** *which* generators you train on dominates *how many* images you have.
+
+That much is solid and reproduced across every arm. **Our explanation for it was not.**
+
+#### What we originally claimed
+
+We attributed both results to **generator vintage**: DALL-E 2 is 2022, the validation fakes are DALL-E 3
+(2023), so training on an obsolete generator teaches artifacts modern ones no longer produce. We cited
+Bernabeu-Perez et al. (2409.14128), whose finding is that *"SIG model age emerges as the dominant factor
+affecting generalization performance."*
+
+#### Two experiments we designed to falsify it, and both did
+
+**#20 — MJv4 vs MJv5.** One variable, on identical features. The theory predicts the older generator
+should be worse.
+
+| Training mix | Designated | CF external | RRDataset |
+|---|---|---|---|
+| SID + LAION + **MJv5** (2023) | **0.9994** | 0.9715 | 0.9318 |
+| SID + LAION + **MJv4** (2022) | 0.9964 | **0.9902** | **0.9581** |
+
+The benchmark and both external sets **rank them in opposite orders.** The *older* generator generalizes
+better — Hourglass 0.7514 → 0.8675, DFGAN 0.9644 → 0.9993.
+
+**#19 — Imagen.** A modern, high-tier commercial diffusion model; the theory's ideal training source. It
+was the **worst** of ten candidates tested: −0.0032 CF and **−0.0260 RRDataset**, the largest single-source
+regression in the sweep.
+
+#### What is actually going on
+
+The designated benchmark's fakes are **DALL-E 3 (2023)**. MJv5 is vintage-matched to the evaluation set.
+Its 0.9994 was never evidence of better training data — it was evidence of **alignment with the test
+distribution**. On data neither generator was matched to, the ranking inverts.
+
+We then found the same mechanism a third time, on the real-image side. In #19, adding FFHQ or CelebA-HQ
+reals produced our best-ever Community Forensics scores (0.9928, 0.9940) while *lowering* RRDataset
+(0.9654, 0.9706). Cause: **Community Forensics-Eval draws its real class from RAISE, COCO, FFHQ and
+LAION.** Training on FFHQ aligns the model with that benchmark's own reals.
+
+Three instances, one pattern: **a source improves a benchmark by resembling that benchmark's data, not by
+making the detector better.** Vintage was a proxy we mistook for a mechanism.
+
+#### What this costs us, stated plainly
+
+The DALL-E 2 result — the single largest number in this report — **was only ever measured on the
+designated benchmark**, before external evaluation existed. We now have direct evidence that this
+benchmark rewards vintage-matching to DALL-E 3. So the honest statement is:
+
+> Dropping DALL-E 2 raised our designated benchmark score by 0.06. We have **not** established that it
+> improved the detector. Re-running that ablation with external evaluation is the first thing we would
+> do with more time.
+
+We are leaving the number in the report with this caveat attached rather than quietly restating it,
+because the process that produced it — and the process that caught it — is the actual result. The ship
+arm is unaffected: it was selected on external scores (§7.8), which is precisely the axis these
+falsifications validate.
+
+#### What replaces vintage as a working theory
+
+Nothing, yet — and we would rather say so than substitute another proxy. What the evidence supports is
+narrower and duller: **source value is empirical, benchmark-relative, and must be measured on data that
+does not share the source's own distribution.** The published method for doing better is SSAFE's MMD
+clustering over frozen embeddings (§9.1), which we have the caches for and did not have time to run.
 
 ### 7.4 The resolution confound — caught by a control we built after being burned
 
@@ -480,7 +538,7 @@ We used the literature two ways: to **avoid burning GPU time** on questions alre
 | Paper | What it says | What we took |
 |---|---|---|
 | **Grommelt et al., "Fake or JPEG? Revealing Common Biases in Generated Image Detection Datasets"** — arXiv:2403.17608, ECCV 2024 W | Names exactly two canonical dataset biases: **JPEG compression and image size**. Audits GenImage: ImageNet reals ~450², Midjourney 1024², SD 512², GLIDE/ADM/VQDM 256², BigGAN 128². Their fix (matching real-image sizes to the generators') gains **+11.06 pp mean cross-generator accuracy, max +41.29 pp**. | **Took the whole diagnosis.** Our §7.4 resolution confound is their documented failure mode with the sign flipped. Their intervention (match size distributions across classes) is the fix we're running. Our "87% of reals flipped" magnitude is consistent with swings of their size. |
-| **Bernabeu-Perez et al., "Present and Future Generalization of Synthetic Image Detectors"** — arXiv:2409.14128 | *"SIG model age emerges as the dominant factor affecting generalization performance."* Cross-generator recall: MJ 1/2 (2022) **54.55%**, DALL-E 3 (2023) 68.64%, MJ 5/6 (2023) **68.92%**. | **Took the vintage explanation** for §7.3. Their worst training source is early-vintage Midjourney; their best are MJ 5/6 and DALL-E 3. Our DALL-E 2 regression and MJv5 gain sit on their trend line — independent confirmation on a different axis. |
+| **Bernabeu-Perez et al., "Present and Future Generalization of Synthetic Image Detectors"** — arXiv:2409.14128 | *"SIG model age emerges as the dominant factor affecting generalization performance."* Cross-generator recall: MJ 1/2 (2022) **54.55%**, DALL-E 3 (2023) 68.64%, MJ 5/6 (2023) **68.92%**. | **Originally taken as the explanation for §7.3 — since RETRACTED.** Two experiments of ours designed to falsify it both did (#20: older MJv4 beat newer MJv5 on both external sets; #19: modern commercial Imagen was the worst of ten candidate sources). We do not dispute their measurement — cross-generator recall on their own suite — only our use of it as a mechanism. See §7.3. |
 | **Cozzolino et al., "Zero-Shot Detection of AI-Generated Images"** — arXiv:2409.15875, ECCV 2024 | The only true real-source ablation we found (Fig. 6). COCO gives the best and most uniform results; real-source choice **interacts with the evaluation real distribution**. | **Took the caveat**: our LAION real-source delta (−0.0012) is eval-set dependent and must not be read as a general property. |
 | **Cozzolino et al.** — arXiv:2312.00195 | Table 2: COCO + Latent Diffusion = 92.4 AUC vs LSUN + Latent Diffusion = 88.7. Cause: LSUN images *"have all the same size, and most of them are compressed with the same quality factor."* | **Our WildFake confound, published two years earlier.** Cited as prior art for §7.2/§7.4. |
 | **Community Forensics** — arXiv:2411.04125, CVPR 2025 | 2.7 M images, 4,803 generators. §4.3 scales **generator count** 3→3333 at fixed 100K images. Separate volume curve: *"performance improves with more training images, [but] begins to plateau at approximately 27K."* | **Took the dataset** (as our external eval) **and the corrected claim**. See §9.3 — we had been citing this paper for the wrong thing. |
@@ -521,7 +579,13 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
 2. **Our one-class-downscale control is not novel.** BIAS-ID (arXiv:2605.31153) formalizes the same
    idea. We present it as **convergent methodology with a citation**, not as an invention.
 
-3. **We were citing Community Forensics for the wrong claim.** We had used it for "generalization
+3. **The generator-vintage explanation is retracted.** We attributed our two biggest data results to
+   generator recency, citing Bernabeu-Perez (arXiv:2409.14128). Two experiments designed to falsify it both
+   did (#20, #19), and the real mechanism traced to benchmark-distribution alignment. Full account in §7.3.
+   This is the most consequential correction in the project — it puts a caveat on the single largest number
+   in the report.
+
+4. **We were citing Community Forensics for the wrong claim.** We had used it for "generalization
    scales with training volume." It doesn't say that — its headline curve holds volume fixed at 100K and
    scales **generator count**. Its actual volume curve *plateaus at ~27K*. This correction happens to
    support our flat data-size curve more strongly than the misreading did.
@@ -530,7 +594,7 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
 
 | Tension | Detail |
 |---|---|
-| **SDXL** | Bernabeu-Perez put SDXL in their *good* training-generator group. We measured it as negligible (+0.0007) and slightly negative stacked on MJv5. So "2023 vintage" alone does not predict our result — something separates MJv5 from SDXL that vintage doesn't capture (commercial aesthetic tuning? prompt distribution? native resolution?). **This is a live, uncontrolled confound in our own MJv5 result**, and the MJv4-vs-MJv5 experiment designed to resolve it is blocked on data access. |
+| **SDXL** — *now resolved* | Bernabeu-Perez put SDXL in their *good* training-generator group; we measured it as negligible (+0.0007) and slightly negative on top of MJv5. When written, this was an unexplained contradiction. **#20 and #19 resolved it against the vintage theory, not in its favour**: MJv4 (2022) beat MJv5 (2023) externally, and Imagen — modern and commercial — was the worst source we tested. Tier and vintage do not predict source value in our setup; benchmark-distribution alignment does. See §7.3. |
 | **Number of augmentation families** | arXiv:2506.11490: *"using more than three augmentations during training does not improve model performance and may even reduce effectiveness."* But NTIRE 2026 practice runs the other way — 36 transformation types, with top teams using multi-level pipelines. **Unresolved in published work.** Our 6-family table sits between the two. |
 | **Frozen probes vs end-to-end** | B-Free: same backbone, linear probe 80.8 AUC vs end-to-end 99.0. Community Forensics Fig. 6a: *"freezing the backbone consistently leads to worse results."* SSAFE is the counterweight (frozen probe at SOTA), and the deciding variable appears to be **data curation quality** — which is exactly what we found. Still: **"we are benchmark-limited" may also be "frozen-probe limited", and we cannot distinguish those on this hardware.** |
 | **Backbone choice** | Three independent 2026 papers rank other encoders above SigLIP2 as frozen feature sources (SSAFE: PE-Core-G14-448 first; "Simplicity Prevails": DINOv3 best on GenImage, PE best on Chameleon; TAP: PE-G14 > DINOv3-7B > SigLIP2-SO400M). NTIRE 2026 ranks 1, 2 and 4 all used DINOv3. **We could not test this meaningfully** — see §6.2. |
@@ -542,27 +606,33 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
 1. **The designated benchmark is saturated.** At 0.9994 there is ~0.0006 of headroom, far below the
    noise floor for ~4,998 real images. It can no longer rank anything. Every remaining decision has to be
    made on the external eval.
-2. **One external dataset is not a generalization bound.** Community Forensics-Eval alone cannot
+2. **Community Forensics is a contaminated readout for real-source experiments.** Its real class is drawn
+   from RAISE, COCO, FFHQ and LAION, so adding any of those as a *training* real source inflates its score
+   without improving the detector — #19 found FFHQ and CelebA-HQ produced our best-ever CF numbers while
+   *lowering* RRDataset. Use RRDataset as primary on that axis.
+3. **One external dataset is not a generalization bound.** Community Forensics-Eval alone cannot
    distinguish "our detector generalizes" from "that dataset is easier than advertised". A second set
    (RRDataset, CC-BY-4.0) is downloaded and ready to score; Chameleon is gated (academic-only, email request).
-3. **The validation fakes are a single generator** (DALL-E 3, 2023), and its 8,843 files are only
+4. **The validation fakes are a single generator** (DALL-E 3, 2023), and its 8,843 files are only
    **3,719 unique images**. We report deduplicated AUC alongside the raw number.
-4. **The alt-real control is structurally blind to resolution shortcuts** — both real sets are 200 px.
+5. **The alt-real control is structurally blind to resolution shortcuts** — both real sets are 200 px.
    Fixed by adding the one-class-downscale control, but any shortcut sharing that blind spot could still
    hide.
-5. **Our reals are ImageNet, LAION and COCO — all in SSAFE's "outdated" category.** Their Table 3 shows a
+6. **Our reals are ImageNet, LAION and COCO — all in SSAFE's "outdated" category.** Their Table 3 shows a
    probe keeping 99.5–99.7% *fake* accuracy while collapsing on *real* accuracy against modern
    photography (SocialRF 41.8%, CommunityAI 66.0%, Chameleon 66.9%). We have not tested this failure mode.
-6. **The shipped arm retains measurable resolution sensitivity** — 5.1% of downscaled reals flagged
+7. **The shipped arm retains measurable resolution sensitivity** — 5.1% of downscaled reals flagged
    versus 1.2% clean, where the benchmark-optimal arm is flat. Reduced ~13× from the unfixed GAN arm, but
    present. Any deployment seeing heavily downscaled real photos should expect a raised false-positive rate.
-7. **Accuracy at a fixed 0.5 threshold fell** 0.9910 → 0.9850 while AUC held. Calibration, not ranking —
+8. **Accuracy at a fixed 0.5 threshold fell** 0.9910 → 0.9850 while AUC held. Calibration, not ranking —
    but it means the 0.5 operating point is no longer the right one.
-8. **The MJv5 win is not fully attributed.** Vintage, commercial tuning, and 1024 px native resolution
-   are all confounded in that one change. The MJv4-vs-MJv5 test that isolates vintage is designed and blocked.
-9. **Frozen-probe ceiling.** We cannot rule out that end-to-end fine-tuning would beat us; LoRA is 22 days
+9. **The MJv5 win is still not fully attributed.** #20 ran the MJv4-vs-MJv5 test and found MJv4 better
+   externally — but MJv4 is also half the resolution (512 vs 1024 px median), so that comparison moves
+   vintage *and* resolution together. What we can say is that vintage does not explain it; what separates
+   the two generators remains open.
+10. **Frozen-probe ceiling.** We cannot rule out that end-to-end fine-tuning would beat us; LoRA is 22 days
    on this laptop.
-10. **Data access.** Three planned experiments (#19 per-generator screening, #20 MJv4-vs-MJv5, #22
+11. **Data access.** Three planned experiments (#19 per-generator screening, #20 MJv4-vs-MJv5, #22
    pixel-space diffusion) are blocked by ModelScope throttling since 2026-08-29. Configs and methods are
    committed and ready to run when access returns.
 

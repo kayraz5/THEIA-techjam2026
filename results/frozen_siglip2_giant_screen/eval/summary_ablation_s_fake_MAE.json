@@ -1,0 +1,22 @@
+{
+ "ablation": "s_fake_MAE",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/MAE/"
+ ],
+ "n_train_features": 40738,
+ "clean_auc_full_set": 0.9983084266161513,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9978474747351906,
+ "clean_auc_alt_real": 0.9955546218487393,
+ "shortcut_gap_clean": 0.002292852886451313,
+ "worst_transform": "resize@0.25",
+ "worst_auc": 0.992819387984111,
+ "max_delta": 0.005028086751079686,
+ "mean_degraded_auc": 0.9963496778793085,
+ "best_robust_val_auc": 0.9932571897328857
+}

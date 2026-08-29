@@ -1,0 +1,12 @@
+{
+ "name": "rr_s_fake_MAGE",
+ "checkpoint": "results/frozen_siglip2_giant_screen/head_ablation_s_fake_MAGE.pt",
+ "n": 3000,
+ "n_fake": 1500,
+ "n_real": 1500,
+ "auc": 0.9672335555555557,
+ "err": 0.03276644444444432,
+ "acc@0.5": 0.89,
+ "bal_acc@0.5": 0.89,
+ "majority_baseline": 0.5
+}

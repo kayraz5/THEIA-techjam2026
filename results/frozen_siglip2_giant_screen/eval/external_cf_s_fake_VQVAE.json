@@ -1,0 +1,12 @@
+{
+ "name": "cf_s_fake_VQVAE",
+ "checkpoint": "results/frozen_siglip2_giant_screen/head_ablation_s_fake_VQVAE.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9898406747891284,
+ "err": 0.010159325210871595,
+ "acc@0.5": 0.948390529396116,
+ "bal_acc@0.5": 0.9489677744935476,
+ "majority_baseline": 0.5677041766427241
+}

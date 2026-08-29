@@ -1,0 +1,22 @@
+{
+ "ablation": "s_real_celebahq",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/celebahq/"
+ ],
+ "n_train_features": 42000,
+ "clean_auc_full_set": 0.9989171740165024,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9986711169140727,
+ "clean_auc_alt_real": 0.9973796791443851,
+ "shortcut_gap_clean": 0.0012914377696876533,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.9949586465292602,
+ "max_delta": 0.003712470384812483,
+ "mean_degraded_auc": 0.99741046267211,
+ "best_robust_val_auc": 0.994707684415695
+}

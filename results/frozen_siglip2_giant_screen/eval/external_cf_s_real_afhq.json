@@ -1,0 +1,12 @@
+{
+ "name": "cf_s_real_afhq",
+ "checkpoint": "results/frozen_siglip2_giant_screen/head_ablation_s_real_afhq.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9904664407757192,
+ "err": 0.009533559224280785,
+ "acc@0.5": 0.9507847831870179,
+ "bal_acc@0.5": 0.9522507389517698,
+ "majority_baseline": 0.5677041766427241
+}

@@ -1,0 +1,22 @@
+{
+ "ablation": "s_real_afhq",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/afhq/"
+ ],
+ "n_train_features": 42000,
+ "clean_auc_full_set": 0.9991303091405056,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9989309235074111,
+ "clean_auc_alt_real": 0.9985805958747135,
+ "shortcut_gap_clean": 0.00035032763269760014,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.9947032621758083,
+ "max_delta": 0.0042276613316027944,
+ "mean_degraded_auc": 0.9975380758802664,
+ "best_robust_val_auc": 0.9951112138053485
+}

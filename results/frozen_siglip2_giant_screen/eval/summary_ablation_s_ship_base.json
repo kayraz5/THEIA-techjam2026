@@ -1,0 +1,21 @@
+{
+ "ablation": "s_ship_base",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based"
+ ],
+ "n_train_features": 39000,
+ "clean_auc_full_set": 0.9990959631619243,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9990359517047182,
+ "clean_auc_alt_real": 0.9979556913674561,
+ "shortcut_gap_clean": 0.0010802603372620512,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.9951112138053485,
+ "max_delta": 0.003924737899369646,
+ "mean_degraded_auc": 0.9977415778836203,
+ "best_robust_val_auc": 0.9955965546329043
+}

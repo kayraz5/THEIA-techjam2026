@@ -1,0 +1,22 @@
+{
+ "ablation": "s_fake_VQDM",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/VQDM/"
+ ],
+ "n_train_features": 42000,
+ "clean_auc_full_set": 0.9984963339627382,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9983140210432284,
+ "clean_auc_alt_real": 0.994601986249045,
+ "shortcut_gap_clean": 0.003712034794183472,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.9916895056930811,
+ "max_delta": 0.0066245153501472975,
+ "mean_degraded_auc": 0.9962132201913788,
+ "best_robust_val_auc": 0.9928503436633171
+}

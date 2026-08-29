@@ -1,0 +1,12 @@
+{
+ "name": "cf_s_fake_Imagen",
+ "checkpoint": "results/frozen_siglip2_giant_screen/head_ablation_s_fake_Imagen.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9884902314180665,
+ "err": 0.011509768581933533,
+ "acc@0.5": 0.942803937217345,
+ "bal_acc@0.5": 0.9439006560449859,
+ "majority_baseline": 0.5677041766427241
+}

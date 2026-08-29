@@ -1,0 +1,12 @@
+{
+ "name": "rr_s_fake_MAE",
+ "checkpoint": "results/frozen_siglip2_giant_screen/head_ablation_s_fake_MAE.pt",
+ "n": 3000,
+ "n_fake": 1500,
+ "n_real": 1500,
+ "auc": 0.9701693333333332,
+ "err": 0.029830666666666783,
+ "acc@0.5": 0.9026666666666666,
+ "bal_acc@0.5": 0.9026666666666667,
+ "majority_baseline": 0.5
+}

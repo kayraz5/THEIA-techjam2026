@@ -1,0 +1,22 @@
+{
+ "ablation": "s_fake_VQVAE",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "test2017",
+  "mj_v5",
+  "GAN_based",
+  "/VQVAE/"
+ ],
+ "n_train_features": 41498,
+ "clean_auc_full_set": 0.9989480356204451,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9987153393129388,
+ "clean_auc_alt_real": 0.9979877769289535,
+ "shortcut_gap_clean": 0.0007275623839853029,
+ "worst_transform": "resize@0.25",
+ "worst_auc": 0.995201869723024,
+ "max_delta": 0.0035134695899147195,
+ "mean_degraded_auc": 0.9973228075600717,
+ "best_robust_val_auc": 0.9950238745675879
+}
