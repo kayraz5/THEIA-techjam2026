@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""python predict.py --image_dir <dir> --output <path.json> [--config configs/frozen_siglip2_giant.yaml] [--checkpoint ...]
+"""python predict.py --image_dir <dir> --output <path.json> [--config configs/frozen_siglip2_giant_ship.yaml] [--checkpoint ...]
 
 Emits [{"image_path": ..., "pred": p_fake}, ...]. Recurses into subdirectories; jpg/jpeg/png/webp/bmp;
 corrupt files are skipped with a warning; batched inference with a progress bar and img/s throughput."""
@@ -26,7 +26,7 @@ class DirDS(Dataset):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--image_dir", required=True); ap.add_argument("--output", required=True)
-    ap.add_argument("--config", default="configs/frozen_siglip2_giant.yaml"); ap.add_argument("--checkpoint", default=None)
+    ap.add_argument("--config", default="configs/frozen_siglip2_giant_ship.yaml"); ap.add_argument("--checkpoint", default=None)
     ap.add_argument("--batch_size", type=int, default=32); ap.add_argument("--workers", type=int, default=2); a = ap.parse_args()
     cfg = load_config(a.config); device = get_device()
     backbone = build_backbone(cfg, device)

@@ -8,5 +8,10 @@ results/**/features/
 .pytest_cache/
 .DS_Store
 
-# ship-candidate head is only ~16 KB — keep it so the repo is self-contained
+# linear heads are ~16 KB each — keep the shipped one (and the previous candidate) so the repo is self-contained
+!results/frozen_siglip2_giant_ship/head_best.pt
 !results/frozen_siglip2_giant_mjv5/head_best.pt
+
+# demo artefacts (scripts/demo.sh)
+demo_images/
+demo_preds.json

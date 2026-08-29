@@ -592,7 +592,8 @@ baseline is reported — which it now is.
 
 ### 12.1 Reproduction
 ```bash
-source .venv/bin/activate
+source .venv/bin/activate                      # see README "Setup" for install / platform notes
+scripts/prepare_data.sh && scripts/prepare_data_ship.sh   # all data pulls, seeded; ~18 GB total
 python -m src.data.build_val --config configs/frozen_siglip2_giant_ship.yaml   # manifest + exclusion hashes
 python -m src.train          --config configs/frozen_siglip2_giant_ship.yaml   # asserts no leakage first
 python -m src.evaluate       --config configs/frozen_siglip2_giant_ship.yaml   # 15-condition grid + plots
@@ -611,7 +612,7 @@ python predict.py --image_dir <dir> --output preds.json                        #
 | Gate-probe output | `results/gate_probe.json` |
 | Hyperparameter sweeps | `results/frozen_siglip2_giant_sidonly/sweep_{reg,norm,loss}.csv` |
 | Full reasoning + literature | GitHub issues #1–#25 (each carries a results comment) |
-| Shipped checkpoint | `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB) |
+| Shipped checkpoint | `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB, committed; `predict.py` default) |
 | The 2×2 (§7.8) | `results/frozen_siglip2_giant_2x2/` — four heads, four grids, `resolution_control.txt` |
 
 ### 12.3 Engineering notes worth repeating
