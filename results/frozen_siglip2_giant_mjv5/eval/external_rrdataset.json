@@ -1,0 +1,12 @@
+{
+ "name": "rrdataset",
+ "checkpoint": "results/frozen_siglip2_giant_mjv5/head_best.pt",
+ "n": 3000,
+ "n_fake": 1500,
+ "n_real": 1500,
+ "auc": 0.93182,
+ "err": 0.06818000000000002,
+ "acc@0.5": 0.8683333333333333,
+ "bal_acc@0.5": 0.8683333333333334,
+ "majority_baseline": 0.5
+}

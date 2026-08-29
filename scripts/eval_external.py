@@ -1,11 +1,17 @@
 """Issue #15: score a trained checkpoint on an EXTERNAL held-out set the model never trained on.
 
-Currently supports Community Forensics-Eval (OwensLab/CommunityForensics-Eval) — fakes from a wide
-range of community and commercial generators, with per-generator metadata. Reported alongside the
-designated benchmark to expose the generalization gap honestly.
+Two source layouts:
+  parquet (default) — Community Forensics-Eval (OwensLab/CommunityForensics-Eval), fakes from a wide
+                      range of community and commercial generators, with per-generator metadata.
+  dir               — an on-disk tree whose leaf directories name the class ("ai"/"fake" -> 1,
+                      "real"/"nature" -> 0). Used for RRDataset (#25). The per-generator breakdown
+                      becomes a per-category breakdown taken from the filename prefix.
 
-  python scripts/eval_external.py --config configs/frozen_siglip2_giant_sidonly.yaml \
-      --checkpoint results/frozen_siglip2_giant_sidonly/head_best.pt
+  python scripts/eval_external.py --config configs/frozen_siglip2_giant_ship.yaml \
+      --checkpoint results/frozen_siglip2_giant_ship/head_best.pt
+
+  python scripts/eval_external.py --config configs/frozen_siglip2_giant_ship.yaml \
+      --source dir --root data/rrdataset/images --name rrdataset
 """
 from __future__ import annotations
 import argparse, glob, io, json, os, sys
@@ -31,6 +37,51 @@ class ParquetImages(Dataset):
         return to_tensor(squish_resize(img, self.size), self.mean, self.std), r["label"], i
 
 
+class DirImages(Dataset):
+    def __init__(self, rows, size, mean, std):
+        self.rows, self.size, self.mean, self.std = rows, size, mean, std
+    def __len__(self): return len(self.rows)
+    def __getitem__(self, i):
+        r = self.rows[i]
+        try:
+            img = Image.open(r["path"]); img.load(); img = img.convert("RGB")
+        except Exception:
+            img = Image.new("RGB", (self.size, self.size))
+        return to_tensor(squish_resize(img, self.size), self.mean, self.std), r["label"], i
+
+
+FAKE_DIRS = {"ai", "fake", "fakes", "synthetic", "generated", "1"}
+REAL_DIRS = {"real", "reals", "nature", "natural", "0"}
+IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+
+def load_dir_rows(root, limit=0):
+    """Walk `root`; a file's class comes from the nearest ancestor directory named ai/real (etc).
+    `model_name` is set to the filename prefix before the trailing _NNNNNN, which for RRDataset is
+    the semantic category (e.g. 'War_&_Conflict_Scenes'), so the per-generator table becomes a
+    per-category table with no other code changes."""
+    import re
+    rows = []
+    for dirpath, _, files in os.walk(root):
+        parts = [q.lower() for q in dirpath.split(os.sep)]
+        lab = None
+        for q in reversed(parts):
+            if q in FAKE_DIRS: lab = 1; break
+            if q in REAL_DIRS: lab = 0; break
+        if lab is None:
+            continue
+        split = next((q for q in parts if q in ("train", "val", "test")), "")
+        for f in files:
+            if os.path.splitext(f)[1].lower() not in IMG_EXTS: continue
+            cat = re.sub(r"_\d+$", "", os.path.splitext(f)[0])
+            rows.append({"path": os.path.join(dirpath, f), "label": lab,
+                         "model_name": cat, "architecture": split})
+    rows.sort(key=lambda r: r["path"])
+    if limit and len(rows) > limit:
+        import random; random.Random(0).shuffle(rows); rows = rows[:limit]
+    return rows
+
+
 def load_rows(pattern, img_col, limit=0):
     import pyarrow.parquet as pq
     rows = []
@@ -54,9 +105,15 @@ def main():
     ap.add_argument("--pattern", default="data/commforensics/data/*.parquet")
     ap.add_argument("--img_col", default="image_data"); ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--name", default="community_forensics")
+    ap.add_argument("--source", choices=["parquet", "dir"], default="parquet")
+    ap.add_argument("--root", default=None, help="dir source: root of the image tree")
     a = ap.parse_args()
     cfg = load_config(a.config); set_seed(cfg["seed"]); device = get_device()
-    rows = load_rows(a.pattern, a.img_col, a.limit)
+    if a.source == "dir":
+        assert a.root, "--source dir requires --root"
+        rows = load_dir_rows(a.root, a.limit)
+    else:
+        rows = load_rows(a.pattern, a.img_col, a.limit)
     print(f"[external] {len(rows)} images from {a.name}: "
           f"{sum(1 for r in rows if r['label']==0)} real / {sum(1 for r in rows if r['label']==1)} fake")
 
@@ -65,7 +122,8 @@ def main():
     ck = torch.load(a.checkpoint or os.path.join(cfg["output_dir"], "head_best.pt"), map_location="cpu", weights_only=False)
     head = LinearHead(backbone.feature_dim).to(device); head.load_state_dict(ck["head"]); head.eval()
 
-    i = backbone.info; ds = ParquetImages(rows, i.image_size, i.mean, i.std)
+    i = backbone.info
+    ds = (DirImages if a.source == "dir" else ParquetImages)(rows, i.image_size, i.mean, i.std)
     dl = DataLoader(ds, batch_size=cfg["eval"]["batch_size"], num_workers=2)
     scores = np.zeros(len(ds)); labels = np.zeros(len(ds), int)
     dtype = next(backbone.parameters()).dtype
@@ -92,9 +150,10 @@ def main():
         per.append({"generator": gen, "architecture": g.architecture.iloc[0], "n_fake": len(g),
                     "auc_vs_all_reals": metrics(y, s)["auc"], "mean_score": float(g.score.mean())})
     if per:
-        pdf = pd.DataFrame(per).sort_values("auc_vs_all_reals")
+        label = "category" if a.source == "dir" else "generator"
+        pdf = pd.DataFrame(per).sort_values("auc_vs_all_reals").rename(columns={"generator": label})
         pdf.to_csv(os.path.join(out_dir, f"external_{a.name}_per_generator.csv"), index=False)
-        print("\nper-generator (vs all reals in this set), worst first:")
+        print(f"\nper-{label} (vs all reals in this set), worst first:")
         print(pdf.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     json.dump({"name": a.name, "checkpoint": a.checkpoint, **m},
               open(os.path.join(out_dir, f"external_{a.name}.json"), "w"), indent=1)

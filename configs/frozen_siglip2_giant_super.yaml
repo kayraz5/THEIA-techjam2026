@@ -1,0 +1,77 @@
+# ============================================================================
+# SUPERSET extraction covering #20 (MJv4 vs MJv5 - vintage) and #22 (pixel-space
+# diffusion) in ONE pass, so every comparison is on bit-identical features and the
+# only variable is which sources a --keep ablation retains.
+#
+# #20  keep [sid_set, laion5b, mj_v5]  vs  keep [sid_set, laion5b, mj_v4]
+#      Holds brand, prompt style and native resolution roughly fixed; moves only
+#      VINTAGE (2023 vs 2022). The falsifiable test of the tier/vintage theory from
+#      #3/#10. If MJv4 ~= MJv5, vintage is not the variable and the story needs rework.
+#
+# #22  keep [ship mix]  vs  keep [ship mix + ADM + DDIM + DDPM]
+#      ADM/DDIM/DDPM are pixel-space diffusion: no VAE, so no VAE decoder fingerprint
+#      (Rajan & Ojha 2410.11835) - the mechanism behind Hourglass being our worst
+#      external cell. MEASURED FIRST, per #23's lesson: all three are exactly 256px,
+#      100% under 384 - the same profile that collapsed the raw GAN arm in #18. The
+#      ship mix already carries ~200px COCO test2017 reals, so low resolution is on
+#      both sides of the label from the start.
+#
+# --keep substrings: sid_set / laion5b / test2017 / mj_v5 / mj_v4 / GAN_based /
+#                    /ADM/ / /DDIM/ / /DDPM/
+# ============================================================================
+# Arm 1: reference configuration, frozen backbone + linear head (default / fast iteration)
+name: frozen_siglip2_giant_super
+seed: 0
+backbone:
+  name: google/siglip2-giant-opt-patch16-384
+  fallback: google/siglip2-so400m-patch14-384   # used only if giant exceeds 2B or does not fit in memory
+  image_size: 384
+  dtype: bfloat16
+mode: frozen              # frozen | lora
+lora:
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+data:
+  sources: [sid_set, wildfake]   # scaled data pass: answers #9 (SID size curve) and #10 (generator diversity) from ONE extraction
+  sid_set:
+    max_train: 8000       # #9 curve: 8k == 12k, so 8k saves extraction time
+    include_tampered: false   # label 2 (tampered) excluded; label 1 (full synthetic) -> fake
+  wildfake:
+    root: data/wildfake
+    train_subsets: [real_laion5b, real_coco, mjv5, mjv4, DF-GAN, styleGAN, GALIP, GigaGAN, starGAN, BigGAN, adm, ddim, ddpm]   # real_coco is filtered to /test2017/ by build_train (val2017 is held out)
+    max_per_subset: 3000
+  cifake:
+    enabled: false        # 32x32 images; smoke-test only. See README.
+    root: data/cifake
+  validation:
+    name: wildfake_coco_dalle3   # organisers' designated subset: 4,998 COCO val2017 real + 8,843 DALL-E Advanced fake
+    exclusion_list: data/exclusion/wildfake_val_hashes.txt
+  alt_real:
+    name: wildfake_imagenet_heldout  # second real-only held-out set from a non-COCO source (shortcut check, spec §3)
+    n: 1000
+degradation:
+  prob: 1.0
+  min_transforms: 1
+  max_transforms: 3
+  hflip: 0.5
+  seed: 0
+train:
+  epochs: 30
+  feature_epochs: 2      # frozen mode: number of independent degradation draws of the train set cached as features
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 0.01
+  warmup_epochs: 1
+  loss: ce               # ce | focal
+  focal_gamma: 2.0
+  focal_alpha: 0.5
+  weighted_sampler: true
+  amp: true
+  checkpoint_metric: robust_auc
+features:
+  cache_dir: data/features
+eval:
+  batch_size: 32
+  n_eval_max: 2000       # seeded subset used for the per-condition grid + degraded checkpointing (compute: ~5 img/s on M5 Pro). Clean AUC is ALSO reported on the full set.
+output_dir: results/frozen_siglip2_giant_super
