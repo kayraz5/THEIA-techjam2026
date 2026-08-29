@@ -1,0 +1,12 @@
+{
+ "name": "rr_v22_pixdiff",
+ "checkpoint": "results/frozen_siglip2_giant_super/head_ablation_v22_pixdiff.pt",
+ "n": 3000,
+ "n_fake": 1500,
+ "n_real": 1500,
+ "auc": 0.9639842222222222,
+ "err": 0.03601577777777776,
+ "acc@0.5": 0.8863333333333333,
+ "bal_acc@0.5": 0.8863333333333334,
+ "majority_baseline": 0.5
+}

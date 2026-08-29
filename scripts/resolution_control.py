@@ -14,6 +14,12 @@ assert (y == y2).all()
 real, fake = y == 0, y == 1
 print(f"eval subset: {real.sum()} real / {fake.sum()} fake")
 
+import sys as _sys
+EXTRA = {}
+for _a in _sys.argv[1:]:
+    if "=" in _a:
+        k, v = _a.split("=", 1); EXTRA[k] = v
+
 heads = {
     "A_ship (sid+laion+mjv5)":      "results/frozen_siglip2_giant_2x2/head_ablation_A_ship.pt",
     "B +COCO reals":                "results/frozen_siglip2_giant_2x2/head_ablation_B_plus_cocoreals.pt",
@@ -21,6 +27,7 @@ heads = {
     "D +both":                      "results/frozen_siglip2_giant_2x2/head_ablation_D_plus_both.pt",
     "SHIPPED mjv5 (sid 12k)":       "results/frozen_siglip2_giant_mjv5/head_best.pt",
 }
+heads.update(EXTRA)
 
 def scores(ck, X):
     sd = torch.load(ck, map_location="cpu")

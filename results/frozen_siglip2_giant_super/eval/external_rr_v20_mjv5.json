@@ -1,0 +1,12 @@
+{
+ "name": "rr_v20_mjv5",
+ "checkpoint": "results/frozen_siglip2_giant_super/head_ablation_v20_mjv5.pt",
+ "n": 3000,
+ "n_fake": 1500,
+ "n_real": 1500,
+ "auc": 0.9317657777777778,
+ "err": 0.0682342222222222,
+ "acc@0.5": 0.8646666666666667,
+ "bal_acc@0.5": 0.8646666666666667,
+ "majority_baseline": 0.5
+}

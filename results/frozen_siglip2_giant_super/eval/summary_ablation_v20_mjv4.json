@@ -1,0 +1,19 @@
+{
+ "ablation": "v20_mjv4",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "mj_v4"
+ ],
+ "n_train_features": 28000,
+ "clean_auc_full_set": 0.9963628332708182,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9955523322340383,
+ "clean_auc_alt_real": 0.9973139801375096,
+ "shortcut_gap_clean": -0.0017616479034713306,
+ "worst_transform": "blur@2.0",
+ "worst_auc": 0.9879482907490058,
+ "max_delta": 0.0076040414850324645,
+ "mean_degraded_auc": 0.994439349216861,
+ "best_robust_val_auc": 0.9919415733666181
+}
