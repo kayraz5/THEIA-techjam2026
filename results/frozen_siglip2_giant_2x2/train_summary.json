@@ -1,0 +1,6 @@
+{
+ "clean_auc_coco_real": 0.9990912796193905,
+ "clean_auc_alt_real": 0.9982004975686984,
+ "best_robust_val_auc": 0.9956440937116854,
+ "shortcut_gap": 0.0008907820506920405
+}

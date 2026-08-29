@@ -1,0 +1,12 @@
+{
+ "name": "cf_B_plus_cocoreals",
+ "checkpoint": "results/frozen_siglip2_giant_2x2/head_ablation_B_plus_cocoreals.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9656804844639897,
+ "err": 0.034319515536010314,
+ "acc@0.5": 0.8502261239691408,
+ "bal_acc@0.5": 0.8658863816595775,
+ "majority_baseline": 0.5677041766427241
+}

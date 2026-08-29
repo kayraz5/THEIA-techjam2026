@@ -20,6 +20,24 @@ reported without balanced accuracy and the majority-class baseline, because the 
 
 > **RESULTS: see [results/RESULTS.md](results/RESULTS.md)** (auto-filled from `results/<arm>/eval/summary.json`).
 
+### Ship candidate
+
+`configs/frozen_siglip2_giant_ship.yaml` -> `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB).
+
+| | |
+|---|---|
+| Designated benchmark, clean AUC (13,841 imgs) | **0.9991** (dedup 0.9991) |
+| Worst single transform | noise@0.1 **0.9951** (max delta 0.0039) |
+| Accuracy @ 0.5 / balanced acc / majority baseline | 0.9850 / 0.9856 / 0.6545 |
+| Shortcut gap (COCO reals vs ImageNet reals) | +0.0011 |
+| **External generalization** (Community Forensics-Eval, 3,759 imgs, unseen) | **0.9917** |
+
+Selected on **external** generalization, not the designated benchmark - the benchmark is saturated
+(0.9994 is reachable, leaving ~0.0006 of headroom, below the noise floor for 4,998 real images) and can
+no longer rank arms. The previous candidate (`frozen_siglip2_giant_mjv5`, 0.9994 designated) scores
+**0.9715** on the same external set under a like-for-like comparison. Full reasoning:
+[docs/REPORT.md](docs/REPORT.md), section 7.4.
+
 ---
 
 ## Setup

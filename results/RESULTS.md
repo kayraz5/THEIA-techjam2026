@@ -12,9 +12,10 @@ The designated validation set is class-imbalanced (real:fake about 1:1.77, major
 | frozen_siglip2_giant_gan        |               0.9197 | resize@0.25       |      0.6531 |      0.2607 |        -0.0176 |     1.1640 |
 | frozen_siglip2_giant_harmonized |               0.9316 | resize@0.25       |      0.8106 |      0.1113 |        -0.0268 |     1.1640 |
 | frozen_siglip2_giant_mjv5       |               0.9994 | noise@0.02        |      0.9991 |      0.0003 |        -0.0002 |     1.1640 |
+| frozen_siglip2_giant_ship       |               0.9991 | noise@0.1         |      0.9951 |      0.0039 |         0.0011 |     1.1640 |
 | frozen_siglip2_giant_sidonly    |               0.9931 | crop@0.8          |      0.9895 |      0.0018 |        -0.0020 |     1.1640 |
 
-Per-arm reports: [baseline_clip_vitl14_sidonly](baseline_clip_vitl14_sidonly/RESULTS.md) · [frozen_siglip2_giant](frozen_siglip2_giant/RESULTS.md) · [frozen_siglip2_giant_gan](frozen_siglip2_giant_gan/RESULTS.md) · [frozen_siglip2_giant_harmonized](frozen_siglip2_giant_harmonized/RESULTS.md) · [frozen_siglip2_giant_mjv5](frozen_siglip2_giant_mjv5/RESULTS.md) · [frozen_siglip2_giant_sidonly](frozen_siglip2_giant_sidonly/RESULTS.md)
+Per-arm reports: [baseline_clip_vitl14_sidonly](baseline_clip_vitl14_sidonly/RESULTS.md) · [frozen_siglip2_giant](frozen_siglip2_giant/RESULTS.md) · [frozen_siglip2_giant_gan](frozen_siglip2_giant_gan/RESULTS.md) · [frozen_siglip2_giant_harmonized](frozen_siglip2_giant_harmonized/RESULTS.md) · [frozen_siglip2_giant_mjv5](frozen_siglip2_giant_mjv5/RESULTS.md) · [frozen_siglip2_giant_ship](frozen_siglip2_giant_ship/RESULTS.md) · [frozen_siglip2_giant_sidonly](frozen_siglip2_giant_sidonly/RESULTS.md)
 
 ## baseline_clip_vitl14_sidonly
 
@@ -484,6 +485,76 @@ Accuracy at threshold 0.5 on the full set: 0.9910, balanced accuracy 0.9915 — 
 
 ---
 
+## frozen_siglip2_giant_ship
+
+`google/siglip2-giant-opt-patch16-384` — 1.164 B parameters (hard limit 2 B, asserted at every model load)
+
+| Measurement | AUC | error (1 − AUC) |
+|---|---|---|
+| clean, **full** designated val set (n=13841) | **0.9991** | 0.0009 |
+| clean, full set **deduplicated** (n=8717: 4998 real / 3719 unique fake) | 0.9991 | 0.0009 |
+| clean, eval subset, fakes vs COCO reals | 0.9990 | 0.0010 |
+| clean, eval subset, fakes vs **ImageNet (alt) reals** | 0.9980 | 0.0020 |
+| worst single transform: `noise@0.1` | 0.9951 (alt real 0.9905) | 0.0049 |
+
+**Shortcut gap (COCO-real AUC − alt-real AUC, clean): +0.0011** — a large positive gap would mean the model is exploiting the COCO capture pipeline rather than detecting generation.
+
+Max degradation delta: **0.0039** · mean degraded AUC: 0.9977
+
+Accuracy at threshold 0.5 on the full set: 0.9850, balanced accuracy 0.9856 — against a majority-class baseline of 0.6545 (class ratio 1:1.89).
+
+### Per-transform grid (eval subset)
+
+| transform   |   level |   auc_coco_real |   delta_coco |   err_coco_real |   auc_alt_real |   shortcut_gap |   bal_acc@0.5 |
+|:------------|--------:|----------------:|-------------:|----------------:|---------------:|---------------:|--------------:|
+| clean       |         |          0.9990 |       0.0000 |          0.0010 |         0.9980 |         0.0011 |        0.9831 |
+| jpeg        | 90.0000 |          0.9990 |       0.0000 |          0.0010 |         0.9979 |         0.0011 |        0.9831 |
+| jpeg        | 70.0000 |          0.9991 |      -0.0001 |          0.0009 |         0.9981 |         0.0010 |        0.9831 |
+| jpeg        | 50.0000 |          0.9985 |       0.0005 |          0.0015 |         0.9974 |         0.0011 |        0.9802 |
+| jpeg        | 30.0000 |          0.9968 |       0.0023 |          0.0032 |         0.9953 |         0.0014 |        0.9720 |
+| blur        |  0.5000 |          0.9991 |      -0.0001 |          0.0009 |         0.9981 |         0.0010 |        0.9820 |
+| blur        |  1.0000 |          0.9981 |       0.0009 |          0.0019 |         0.9964 |         0.0017 |        0.9785 |
+| blur        |  2.0000 |          0.9961 |       0.0029 |          0.0039 |         0.9939 |         0.0022 |        0.9665 |
+| resize      |  0.5000 |          0.9979 |       0.0012 |          0.0021 |         0.9963 |         0.0015 |        0.9738 |
+| resize      |  0.2500 |          0.9960 |       0.0030 |          0.0040 |         0.9926 |         0.0034 |        0.9647 |
+| noise       |  0.0200 |          0.9980 |       0.0010 |          0.0020 |         0.9971 |         0.0009 |        0.9762 |
+| noise       |  0.0500 |          0.9969 |       0.0021 |          0.0031 |         0.9949 |         0.0021 |        0.9729 |
+| noise       |  0.1000 |          0.9951 |       0.0039 |          0.0049 |         0.9905 |         0.0046 |        0.9642 |
+| color       |  0.2000 |          0.9991 |      -0.0001 |          0.0009 |         0.9982 |         0.0010 |        0.9843 |
+| crop        |  0.8000 |          0.9985 |       0.0006 |          0.0015 |         0.9971 |         0.0014 |        0.9795 |
+
+![AUC grid](frozen_siglip2_giant_ship/eval/auc_grid.png)
+
+### Operating points (clean images)
+
+`FPR_real` is the fraction of genuine photos wrongly flagged; on a platform serving billions of images this is the cost that matters, which is why it is reported per threshold rather than only as a single accuracy figure.
+
+|   threshold |   FPR_real |   TPR_fake | note        |
+|------------:|-----------:|-----------:|:------------|
+|      0.1000 |     0.0550 |     0.9977 |             |
+|      0.2000 |     0.0333 |     0.9908 |             |
+|      0.3000 |     0.0232 |     0.9840 |             |
+|      0.4000 |     0.0174 |     0.9817 |             |
+|      0.5000 |     0.0116 |     0.9778 |             |
+|      0.6000 |     0.0101 |     0.9763 |             |
+|      0.7000 |     0.0072 |     0.9717 |             |
+|      0.8000 |     0.0043 |     0.9687 |             |
+|      0.9000 |     0.0014 |     0.9565 |             |
+|      0.9500 |     0.0000 |     0.9473 |             |
+|      0.9900 |     0.0000 |     0.9076 |             |
+|      0.9446 |     0.0000 |     0.9488 | @FPR<=0.001 |
+|      0.6388 |     0.0087 |     0.9763 | @FPR<=0.01  |
+|      0.1266 |     0.0478 |     0.9939 | @FPR<=0.05  |
+
+### Figures
+
+- ROC curve: `frozen_siglip2_giant_ship/eval/roc.png`
+- FPR vs threshold: `frozen_siglip2_giant_ship/eval/fpr_vs_threshold.png`
+- Error analysis contact sheets: `frozen_siglip2_giant_ship/eval/errors_fp.png` (false positives), `frozen_siglip2_giant_ship/eval/errors_fn.png` (false negatives), `frozen_siglip2_giant_ship/eval/errors_top.csv`
+- Checkpoint / training history: `frozen_siglip2_giant_ship/head_best.pt`, `frozen_siglip2_giant_ship/train_history.json`
+
+---
+
 ## frozen_siglip2_giant_sidonly
 
 `google/siglip2-giant-opt-patch16-384` — 1.164 B parameters (hard limit 2 B, asserted at every model load)
@@ -556,10 +627,12 @@ Accuracy at threshold 0.5 on the full set: 0.9616, balanced accuracy 0.9665 — 
 
 ## Baseline comparison (`src/compare.py`)
 
-| arm                             | backbone                             |   params_B |   clean_auc |   clean_auc_alt_real |   mean_degraded_auc | worst       |   worst_auc |   max_delta |
-|:--------------------------------|:-------------------------------------|-----------:|------------:|---------------------:|--------------------:|:------------|------------:|------------:|
-| baseline_clip_vitl14_sidonly    | openai/clip-vit-large-patch14        |     0.3030 |      0.9753 |               0.9835 |              0.9814 | jpeg@70     |      0.9732 |      0.0021 |
-| frozen_siglip2_giant_sidonly    | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9913 |               0.9933 |              0.9927 | crop@0.8    |      0.9895 |      0.0018 |
-| frozen_siglip2_giant_harmonized | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9219 |               0.9487 |              0.8858 | resize@0.25 |      0.8106 |      0.1113 |
-| frozen_siglip2_giant            | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9214 |               0.9484 |              0.8842 | resize@0.25 |      0.8097 |      0.1118 |
+| arm                          | backbone                             |   params_B |   clean_auc |   clean_auc_alt_real |   mean_degraded_auc | worst       |   worst_auc |   max_delta |
+|:-----------------------------|:-------------------------------------|-----------:|------------:|---------------------:|--------------------:|:------------|------------:|------------:|
+| frozen_siglip2_giant         | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9214 |               0.9484 |              0.8842 | resize@0.25 |      0.8097 |      0.1118 |
+| baseline_clip_vitl14_sidonly | openai/clip-vit-large-patch14        |     0.3030 |      0.9753 |               0.9835 |              0.9814 | jpeg@70     |      0.9732 |      0.0021 |
+| frozen_siglip2_giant_sidonly | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9913 |               0.9933 |              0.9927 | crop@0.8    |      0.9895 |      0.0018 |
+| frozen_siglip2_giant_gan     | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9137 |               0.9313 |              0.8305 | resize@0.25 |      0.6531 |      0.2607 |
+| frozen_siglip2_giant_mjv5    | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9994 |               0.9996 |              0.9995 | noise@0.02  |      0.9991 |      0.0003 |
+| frozen_siglip2_giant_ship    | google/siglip2-giant-opt-patch16-384 |     1.1640 |      0.9990 |               0.9980 |              0.9977 | noise@0.1   |      0.9951 |      0.0039 |
 

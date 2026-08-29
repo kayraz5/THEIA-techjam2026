@@ -1,0 +1,12 @@
+{
+ "name": "cf_D_plus_both",
+ "checkpoint": "results/frozen_siglip2_giant_2x2/head_ablation_D_plus_both.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9917305169057746,
+ "err": 0.008269483094225372,
+ "acc@0.5": 0.9521149241819633,
+ "bal_acc@0.5": 0.9510737509912768,
+ "majority_baseline": 0.5677041766427241
+}

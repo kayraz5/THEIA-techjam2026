@@ -12,11 +12,39 @@ literature: GitHub issues #1-#25 (each carries a results comment).
 | CLIP ViT-L/14 baseline (#12) | 0.9766 | jpeg@70 0.9732 | 0.0021 | — |
 | SID-only (#17) | 0.9931 | crop@0.8 0.9895 | 0.0018 | 0.8276 |
 | GAN-augmented (#18) | 0.9197 | resize@0.25 0.6531 | 0.2607 | 0.9866 (confounded) |
-| **SID + LAION + MJv5 (ship)** | **0.9994** | **noise@0.02 0.9991** | **0.0003** | **0.9644** |
+| SID + LAION + MJv5 (prev ship) | 0.9994 | noise@0.02 0.9991 | 0.0003 | 0.9644 |
+| **+ COCO test2017 reals + 6 GAN families (SHIP)** | **0.9991** | **noise@0.1 0.9951** | **0.0039** | **0.9917** |
 
-Ship candidate: `configs/frozen_siglip2_giant_mjv5.yaml`,
-`results/frozen_siglip2_giant_mjv5/head_best.pt` (16 KB, committed).
-acc@0.5 0.9900, balanced acc 0.9907, majority baseline 0.6545. Shortcut gap -0.0002.
+Ship candidate: `configs/frozen_siglip2_giant_ship.yaml`,
+`results/frozen_siglip2_giant_ship/head_best.pt` (16 KB, committed).
+acc@0.5 0.9850, balanced acc 0.9856, majority baseline 0.6545. Shortcut gap +0.0011.
+**Selected on external generalization, not the designated benchmark** - the benchmark is saturated.
+
+## The 2x2 that produced the ship arm (#21 x #23, 2026-08-29)
+
+Two factors on the same base mix: add low-res COCO test2017 **reals**, add WildFake **GAN** fakes.
+
+| Arm | Designated clean | Worst cell | Max delta | External CF |
+|---|---|---|---|---|
+| A  ship mix (sid+laion+mjv5) | 0.9994 | blur@2.0 0.9989 | 0.0005 | 0.9715 |
+| B  + COCO test2017 reals | **0.9998** | noise@0.02 0.9997 | 0.0001 | 0.9657 |
+| C  + GAN families | 0.9875 | resize@0.25 0.9217 | 0.0634 | 0.9919 |
+| **D  + BOTH (ship)** | 0.9991 | noise@0.1 0.9951 | 0.0039 | **0.9917** |
+
+**Interaction effect - neither factor works alone.** COCO reals alone HURT externally (-0.0058).
+GAN alone wrecks the benchmark (max delta 0.0634, still resolution-confounded). Together they keep
+the benchmark and capture the external gain. This is Grommelt's "match the size distributions across
+classes" intervention: COCO test2017 is ~200px and the GAN fakes are ~256px, so adding those reals
+puts low resolution on BOTH sides of the label.
+
+Per-generator, the OOD hole largely closes: Hourglass (pixel-diffusion) 0.7514 -> **0.9398**,
+DFGAN 0.9644 -> **0.9996**.
+
+Caveat on comparability: the 2x2's arm A uses SID 8k, the previous shipped head used SID 12k - hence
+A's 0.9715 vs the shipped 0.9644 on the same external set. Compare **within** the 2x2 table.
+
+Note the accuracy trade: acc@0.5 falls 0.9910 -> 0.9850 while AUC is nearly unchanged. That is
+threshold calibration, not ranking quality; re-tune the operating point if a fixed threshold is used.
 
 ## Per-source screening (same features, same head procedure, sources vary)
 
@@ -62,6 +90,20 @@ Degrade only one class and re-score. A head using resolution as a cue collapses 
 | only FAKES downscaled | 0.9918 | 0.9994 | 0.9328 |
 | only REALS downscaled | 0.9938 | 0.9996 | **0.6183** |
 | reals flagged at 0.5, clean -> downscaled | — | 0.7% -> **0.7%** | 23% -> **87%** |
+
+Re-run across the 2x2 arms (`scripts/resolution_control.py`, free - cached features; it reproduces the
+shipped head's numbers exactly, which validates it):
+
+| Arm | clean | both down | only fakes down | **only REALS down** | reals flagged clean -> down |
+|---|---|---|---|---|---|
+| A ship mix | 0.9994 | 0.9996 | 0.9995 | 0.9995 | 0.7% -> 1.0% |
+| B + COCO reals | 0.9999 | 1.0000 | 0.9999 | 1.0000 | 0.1% -> 0.0% |
+| C + GAN only | 0.9851 | 0.9217 | 0.9867 | **0.9209** | 15.5% -> **69.5%** |
+| **D + both (ship)** | 0.9990 | 0.9960 | 0.9990 | 0.9963 | 1.2% -> **5.1%** |
+
+**The fix works but is not complete.** C flags 69.5% of downscaled reals; D only 5.1%. But D is not
+flat the way A is (0.7% -> 1.0%) - a 4x rise remains. Consistent with B-Free: augmentation and
+rebalancing *reduce but do not eliminate* this class of bias. **Disclose the residual 5.1%.**
 
 Source resolutions (median shortest side): WildFake GAN fakes **256** (91% under 384px);
 validation COCO reals **200** (100% under 384); validation DALL-E 3 fakes **1024**; MJv5 **1024**;

@@ -18,12 +18,17 @@ architecture, or a single training hyperparameter. Every point came from fixing 
 
 | | Starting point (spec as written) | Shipped detector |
 |---|---|---|
-| Clean ROC-AUC (designated benchmark, 13,841 images) | 0.9309 | **0.9994** |
-| Worst single-transform cell | resize@0.25 → 0.8097 | noise@0.02 → **0.9991** |
-| Max degradation drop | 0.1118 | **0.0003** |
-| Accuracy @ 0.5 (with baseline 0.6545) | — | **0.9910** (balanced 0.9915) |
-| Shortcut gap (COCO reals vs ImageNet reals) | −0.0270 | **−0.0002** |
-| External generalization (unseen dataset, 3,759 images) | not measured | **0.9644** |
+| Clean ROC-AUC (designated benchmark, 13,841 images) | 0.9309 | **0.9991** |
+| Worst single-transform cell | resize@0.25 → 0.8097 | noise@0.1 → **0.9951** |
+| Max degradation drop | 0.1118 | **0.0039** |
+| Accuracy @ 0.5 (with baseline 0.6545) | — | **0.9850** (balanced 0.9856) |
+| Shortcut gap (COCO reals vs ImageNet reals) | −0.0270 | **+0.0011** |
+| External generalization (unseen dataset, 3,759 images) | not measured | **0.9917** |
+
+The detector peaked at **0.9994** on the designated benchmark mid-project. We shipped a slightly lower
+one on purpose: the benchmark is saturated and cannot rank arms any more, so the final selection was
+made on the **external** set, where the shipped arm scores 0.9917 against 0.9715 for the
+benchmark-optimal one. That trade is §7.8, and it is the single most defensible decision in the project.
 
 Along the way we ran 25 tracked experiments, falsified two of our own hypotheses, caught two
 confounds (spurious shortcuts the model was exploiting instead of actually detecting fakes), and
@@ -204,6 +209,7 @@ without fetching the archive. This is the only reason generator-diversity experi
 | 4 | Training-image format harmonization | off → on (all train images re-encoded JPEG q90) | +0.0007 | **Null result. Our hypothesis was wrong** (§7.2). Kept anyway — it removes a real risk at zero cost. |
 | 5 | `train.feature_epochs` (independent degradation draws) | 2 → 3 | 0.9932 → 0.9938 | Small real gain. |
 | 6 | `train.loss` | ce → focal (γ=5) | 0.9932 → 0.9939 | Small gain; collapses at γ=20 (0.9888). |
+| 7 | **Add COCO test2017 reals + 6 GAN families together** | ship mix → +both | 0.9994 → 0.9991 <br>**external 0.9715 → 0.9917** | **The final change.** Costs 0.0003 on a saturated benchmark, buys +0.0202 out-of-distribution. Neither half works alone (§7.8). |
 
 Everything below the line — every architectural and optimization knob — moved things by ≤0.001.
 Everything above it is data. **That ratio is the finding.**
@@ -364,30 +370,100 @@ Three things to read off this table:
    raised DFGAN (a GAN) from 0.6880 to 0.9513 and Hourglass from chance to 0.7320. We did not expect
    that, and as far as we can establish from the literature, nobody has published this specific measurement (§10.2).
 
-**This is the honest weakness, and we are going to state it in the pitch rather than hide it:** the
-detector is excellent on the benchmark and on modern generators, and measurably weaker on architecture
-families absent from its training data. We know exactly which ones and by how much.
+**This was the honest weakness.** §7.8 is how we closed most of it.
+
+### 7.8 Closing the gap: the 2×2, and why we shipped a lower benchmark score
+
+§7.4 left a puzzle. Adding GAN training data gave the best external score we had ever seen — but the
+arm was unusable, because it had learned "low resolution → fake". Grommelt's paper says the fix is
+not to drop the data but to **match the size distributions across classes**. WildFake GAN fakes are
+~256 px; COCO test2017 reals are ~200 px. Adding those reals puts low resolution on *both* sides of the
+label, so resolution stops being predictive.
+
+We ran it as a 2×2 on one shared feature extraction — two factors, four arms, everything else identical.
+
+| Arm | Designated clean | Worst cell | Max delta | External |
+|---|---|---|---|---|
+| **A** ship mix (SID + LAION + MJv5) | 0.9994 | blur@2.0 0.9989 | 0.0005 | 0.9715 |
+| **B** + COCO test2017 reals | **0.9998** | noise@0.02 0.9997 | 0.0001 | 0.9657 |
+| **C** + GAN families | 0.9875 | resize@0.25 0.9217 | 0.0634 | 0.9919 |
+| **D** + **both**  *(shipped)* | 0.9991 | noise@0.1 0.9951 | 0.0039 | **0.9917** |
+
+**This is an interaction effect — neither factor works alone.** COCO reals on their own (B) set a
+benchmark record and *hurt* generalization (−0.0058). GAN data on its own (C) buys generalization and
+wrecks the benchmark. Only together do you keep both. Had we tested either factor singly — the obvious,
+cheaper experiment — we would have concluded that both were bad ideas.
+
+Per-generator, the architectural hole from §7.7 largely closes:
+
+| Generator | A (benchmark-optimal) | **D (shipped)** |
+|---|---|---|
+| Hourglass — pixel-space diffusion | 0.7514 | **0.9398** |
+| DFGAN — GAN | 0.9644 | **0.9996** |
+| Overall external | 0.9715 | **0.9917** |
+
+#### The control, and what it says we have *not* fixed
+
+Re-running the one-class-downscale test (§4.3) across all four arms — free, cached features, and it
+reproduces the previously shipped head's numbers exactly, which validates the script:
+
+| Arm | clean | both ↓ | only fakes ↓ | **only REALS ↓** | reals flagged, clean → down |
+|---|---|---|---|---|---|
+| A ship mix | 0.9994 | 0.9996 | 0.9995 | 0.9995 | 0.7% → 1.0% |
+| B + COCO reals | 0.9999 | 1.0000 | 0.9999 | 1.0000 | 0.1% → 0.0% |
+| C + GAN only | 0.9851 | 0.9217 | 0.9867 | **0.9209** | 15.5% → **69.5%** |
+| **D + both (shipped)** | 0.9990 | 0.9960 | 0.9990 | 0.9963 | 1.2% → **5.1%** |
+
+**The fix works, and it is not complete.** C flags 69.5% of downscaled reals; D flags 5.1%. But D is
+not flat the way A is — a 4× rise remains. This is exactly what B-Free predicts: rebalancing
+*reduces but does not eliminate* this class of bias. We are shipping D with that number disclosed
+rather than rounding it away.
+
+#### Why we shipped the lower benchmark score
+
+| | Benchmark-optimal (A) | **Shipped (D)** |
+|---|---|---|
+| Designated benchmark | 0.9994 | 0.9991 *(−0.0003)* |
+| External generalization | 0.9715 | **0.9917** *(+0.0202)* |
+| Residual resolution sensitivity | none detectable | 5.1% |
+
+The designated benchmark is saturated — 0.0006 of headroom, far below the noise floor for 4,998 real
+images. It cannot rank these two arms; the difference between 0.9994 and 0.9991 is not a measurement.
+The external set can, and the competition's test data is WildFake, which contains GAN families.
+**Optimizing the number we could no longer measure would have cost us the one we could.**
+
+> One comparability caveat: the 2×2's arm A trains on SID 8k while the
+> previously shipped head used SID 12k — that difference, not noise, is why A scores 0.9715 where the
+> earlier head scored 0.9644 on the same external set. Compare *within* the 2×2 table.
 
 ---
 
 ## 8. What we shipped
 
-`configs/frozen_siglip2_giant_mjv5.yaml` → `results/frozen_siglip2_giant_mjv5/head_best.pt` (**16 KB**)
+`configs/frozen_siglip2_giant_ship.yaml` → `results/frozen_siglip2_giant_ship/head_best.pt` (**16 KB**)
 
-| Metric | Value |
-|---|---|
-| Clean AUC (full 13,841) | 0.99936 |
-| Clean AUC (deduplicated, 8,717) | 0.99941 |
-| Worst cell | noise@0.02 — 0.99912 |
-| Max degradation delta | 0.00026 |
-| Mean degraded AUC | 0.99951 |
-| Accuracy @ 0.5 | 0.99104 |
-| Balanced accuracy @ 0.5 | 0.99147 |
-| **Majority-class baseline** | **0.6545** |
-| Alt-real AUC | 0.99957 |
-| **Shortcut gap** | **−0.00018** |
-| External (Community Forensics) | 0.9644 |
-| Backbone params | 1.163659776 B (cap: 2 B) |
+Training mix: SID_Set 8k + WildFake LAION reals + **COCO test2017 reals** + MJv5 fakes +
+**6 WildFake GAN families** (DF-GAN, styleGAN, GALIP, GigaGAN, starGAN, BigGAN).
+
+| Metric | Shipped arm | Benchmark-optimal arm (not shipped) |
+|---|---|---|
+| Clean AUC (full 13,841) | 0.99910 | 0.99936 |
+| Clean AUC (deduplicated, 8,717) | 0.99914 | 0.99941 |
+| Worst cell | noise@0.1 — 0.99510 | noise@0.02 — 0.99912 |
+| Max degradation delta | 0.00394 | 0.00026 |
+| Mean degraded AUC | 0.99774 | 0.99951 |
+| Accuracy @ 0.5 | 0.98497 | 0.99104 |
+| Balanced accuracy @ 0.5 | 0.98559 | 0.99147 |
+| **Majority-class baseline** | **0.6545** | 0.6545 |
+| Alt-real AUC | 0.99795 | 0.99957 |
+| Shortcut gap | +0.00109 | −0.00018 |
+| **External (Community Forensics)** | **0.9917** | 0.9715 *(like-for-like)* |
+| Backbone params | 1.163659776 B (cap: 2 B) | same |
+
+**One honest caveat on the accuracy column.** Accuracy at a fixed 0.5 threshold falls 0.9910 → 0.9850
+while AUC is essentially unchanged. That is *threshold calibration*, not ranking quality — the score
+distribution shifted, the ordering did not. If a deployment uses a fixed threshold, re-tune the
+operating point from `eval/thresholds.csv` rather than accepting 0.5.
 
 The entire trained artifact is **16 KB** on top of an off-the-shelf frozen encoder. Retraining the head
 from cached features takes seconds.
@@ -434,11 +510,11 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
 **These are in the report on purpose.** Three claims we were repeating did not survive a proper read.
 
 1. **"Augmentation is worth +5.8 AUC" — UNSOURCED. Removed.**
-   This figure came into the project via the build spec and appears in our README. A full read of the
+   This figure came into the project via the build spec and was repeated in our own notes. A full read of the
    **NTIRE 2026 challenge report (arXiv:2604.11487)** finds **no ablation table and no AUC delta for
    augmentation**, for the 5th-place method or any other. The only claim in the report is qualitative.
-   *Action: remove from README before the pitch; the sourceable substitute is +22.53% mAP from
-   arXiv:2506.11490.* (The same read did confirm our reproduction is faithful in every other respect:
+   *Action: checked — it is no longer anywhere in the repo. The sourceable substitute is +22.53% mAP
+   from arXiv:2506.11490. Do not let it back into the deck.* (The same read did confirm our reproduction is faithful in every other respect:
    siglip2-giant-opt-patch16-384, squish resize, mean-pool over final-layer patch tokens, linear head,
    `distortion_prob=1.0`, ≤3 ops, 5 levels.)
 
@@ -468,7 +544,7 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
    made on the external eval.
 2. **One external dataset is not a generalization bound.** Community Forensics-Eval alone cannot
    distinguish "our detector generalizes" from "that dataset is easier than advertised". A second set
-   (RRDataset, CC-BY-4.0) is downloading; Chameleon is gated (academic-only, email request).
+   (RRDataset, CC-BY-4.0) is downloaded and ready to score; Chameleon is gated (academic-only, email request).
 3. **The validation fakes are a single generator** (DALL-E 3, 2023), and its 8,843 files are only
    **3,719 unique images**. We report deduplicated AUC alongside the raw number.
 4. **The alt-real control is structurally blind to resolution shortcuts** — both real sets are 200 px.
@@ -477,11 +553,16 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
 5. **Our reals are ImageNet, LAION and COCO — all in SSAFE's "outdated" category.** Their Table 3 shows a
    probe keeping 99.5–99.7% *fake* accuracy while collapsing on *real* accuracy against modern
    photography (SocialRF 41.8%, CommunityAI 66.0%, Chameleon 66.9%). We have not tested this failure mode.
-6. **The MJv5 win is not fully attributed.** Vintage, commercial tuning, and 1024 px native resolution
+6. **The shipped arm retains measurable resolution sensitivity** — 5.1% of downscaled reals flagged
+   versus 1.2% clean, where the benchmark-optimal arm is flat. Reduced ~13× from the unfixed GAN arm, but
+   present. Any deployment seeing heavily downscaled real photos should expect a raised false-positive rate.
+7. **Accuracy at a fixed 0.5 threshold fell** 0.9910 → 0.9850 while AUC held. Calibration, not ranking —
+   but it means the 0.5 operating point is no longer the right one.
+8. **The MJv5 win is not fully attributed.** Vintage, commercial tuning, and 1024 px native resolution
    are all confounded in that one change. The MJv4-vs-MJv5 test that isolates vintage is designed and blocked.
-7. **Frozen-probe ceiling.** We cannot rule out that end-to-end fine-tuning would beat us; LoRA is 22 days
+9. **Frozen-probe ceiling.** We cannot rule out that end-to-end fine-tuning would beat us; LoRA is 22 days
    on this laptop.
-8. **Data access.** Three planned experiments (#19 per-generator screening, #20 MJv4-vs-MJv5, #22
+10. **Data access.** Three planned experiments (#19 per-generator screening, #20 MJv4-vs-MJv5, #22
    pixel-space diffusion) are blocked by ModelScope throttling since 2026-08-29. Configs and methods are
    committed and ready to run when access returns.
 
@@ -512,10 +593,11 @@ baseline is reported — which it now is.
 ### 12.1 Reproduction
 ```bash
 source .venv/bin/activate
-python -m src.data.build_val --config configs/frozen_siglip2_giant_mjv5.yaml   # manifest + exclusion hashes
-python -m src.train          --config configs/frozen_siglip2_giant_mjv5.yaml   # asserts no leakage first
-python -m src.evaluate       --config configs/frozen_siglip2_giant_mjv5.yaml   # 15-condition grid + plots
-python -m src.compare results/frozen_siglip2_giant results/frozen_siglip2_giant_mjv5 ...
+python -m src.data.build_val --config configs/frozen_siglip2_giant_ship.yaml   # manifest + exclusion hashes
+python -m src.train          --config configs/frozen_siglip2_giant_ship.yaml   # asserts no leakage first
+python -m src.evaluate       --config configs/frozen_siglip2_giant_ship.yaml   # 15-condition grid + plots
+python scripts/resolution_control.py                                           # one-class downscale control (free)
+python -m src.compare results/frozen_siglip2_giant results/frozen_siglip2_giant_ship ...
 python predict.py --image_dir <dir> --output preds.json                        # the deliverable CLI
 ```
 
@@ -529,7 +611,8 @@ python predict.py --image_dir <dir> --output preds.json                        #
 | Gate-probe output | `results/gate_probe.json` |
 | Hyperparameter sweeps | `results/frozen_siglip2_giant_sidonly/sweep_{reg,norm,loss}.csv` |
 | Full reasoning + literature | GitHub issues #1–#25 (each carries a results comment) |
-| Shipped checkpoint | `results/frozen_siglip2_giant_mjv5/head_best.pt` (16 KB) |
+| Shipped checkpoint | `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB) |
+| The 2×2 (§7.8) | `results/frozen_siglip2_giant_2x2/` — four heads, four grids, `resolution_control.txt` |
 
 ### 12.3 Engineering notes worth repeating
 - **Mac must stay awake** (`caffeinate -i`) — sleep silently pauses MPS jobs.
@@ -546,6 +629,8 @@ python predict.py --image_dir <dir> --output preds.json                        #
 optimal), #5 (normalization, none wins), #6 (focal, γ=5 marginal), #7 (gate probe, kills #2), #8 (clean
 draw, hurts), #9 (data size, flat), #10 (generator diversity, **biggest win**), #11 (TTA, rejected), #12
 (CLIP baseline, 0.9766), #15 (external eval, the real weakness), #17 (SID-only ship candidate), #18 (GAN
-arm, confounded), #21/#23 (real-source screening × resolution fix, running). Deferred on measurability:
+arm, confounded), **#21/#23 (real-source screening × resolution fix — produced the shipped arm)**.
+Deferred on measurability:
 #1 (LoRA, 22 days), #13 (resolution), #14 (attention pooling), #2 (ensemble, killed by #7). Blocked on
-data access: #19, #20, #22. In progress: #24 (official NTIRE distortion backend), #25 (second external set).
+data access: #19, #20, #22. Outstanding: #24 (official NTIRE distortion backend), #25 (RRDataset downloaded,
+not yet scored).

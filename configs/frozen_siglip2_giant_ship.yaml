@@ -1,0 +1,78 @@
+# ============================================================================
+# SHIP CANDIDATE (arm D of the 2x2 in #21/#23). Supersedes frozen_siglip2_giant_mjv5.
+#
+# Training mix = SID_Set 8k + WildFake LAION reals + COCO test2017 reals + MJv5 fakes
+#                + 6 WildFake GAN families.
+#
+# The point of the mix: #18 failed because low resolution meant FAKE in training
+# (GAN fakes are ~256px) but REAL in the benchmark (COCO is ~200px). Adding COCO
+# test2017 reals puts low resolution on BOTH sides of the label, so resolution
+# stops being predictive. Pre-upsampling cannot fix this - every image is
+# squish-resized to 384 anyway, so only SOURCE resolution matters.
+#
+# Neither factor works alone (see results/frozen_siglip2_giant_2x2/):
+#   A  ship mix                 designated 0.9994  external 0.9715
+#   B  + COCO reals only        designated 0.9998  external 0.9657   <- hurts OOD
+#   C  + GAN only               designated 0.9875  external 0.9919   <- confounded
+#   D  + BOTH  (this config)    designated 0.9991  external 0.9917
+#
+# Resolution control (scripts/resolution_control.py), % of reals flagged at t=0.5
+# when only the REALS are downscaled:  C 15.5% -> 69.5%   D 1.2% -> 5.1%.
+# The confound is REDUCED, NOT ELIMINATED - disclose the residual 5.1%.
+# ============================================================================
+# Arm 1: reference configuration, frozen backbone + linear head (default / fast iteration)
+name: frozen_siglip2_giant_ship
+seed: 0
+backbone:
+  name: google/siglip2-giant-opt-patch16-384
+  fallback: google/siglip2-so400m-patch14-384   # used only if giant exceeds 2B or does not fit in memory
+  image_size: 384
+  dtype: bfloat16
+mode: frozen              # frozen | lora
+lora:
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+data:
+  sources: [sid_set, wildfake]   # scaled data pass: answers #9 (SID size curve) and #10 (generator diversity) from ONE extraction
+  sid_set:
+    max_train: 8000       # #9 curve: 8k == 12k, so 8k saves extraction time
+    include_tampered: false   # label 2 (tampered) excluded; label 1 (full synthetic) -> fake
+  wildfake:
+    root: data/wildfake
+    train_subsets: [real_laion5b, real_coco, mjv5, DF-GAN, styleGAN, GALIP, GigaGAN, starGAN, BigGAN]   # real_coco is filtered to /test2017/ by build_train (val2017 is held out)
+    max_per_subset: 3000
+  cifake:
+    enabled: false        # 32x32 images; smoke-test only. See README.
+    root: data/cifake
+  validation:
+    name: wildfake_coco_dalle3   # organisers' designated subset: 4,998 COCO val2017 real + 8,843 DALL-E Advanced fake
+    exclusion_list: data/exclusion/wildfake_val_hashes.txt
+  alt_real:
+    name: wildfake_imagenet_heldout  # second real-only held-out set from a non-COCO source (shortcut check, spec §3)
+    n: 1000
+degradation:
+  prob: 1.0
+  min_transforms: 1
+  max_transforms: 3
+  hflip: 0.5
+  seed: 0
+train:
+  epochs: 30
+  feature_epochs: 2      # frozen mode: number of independent degradation draws of the train set cached as features
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 0.01
+  warmup_epochs: 1
+  loss: ce               # ce | focal
+  focal_gamma: 2.0
+  focal_alpha: 0.5
+  weighted_sampler: true
+  amp: true
+  checkpoint_metric: robust_auc
+features:
+  cache_dir: data/features
+eval:
+  batch_size: 32
+  n_eval_max: 2000       # seeded subset used for the per-condition grid + degraded checkpointing (compute: ~5 img/s on M5 Pro). Clean AUC is ALSO reported on the full set.
+output_dir: results/frozen_siglip2_giant_ship
