@@ -145,8 +145,12 @@ def spline(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     divdif = np.diff(y) / dx
 
     if n == 3:
+        y = y.astype(np.float64)          # LOCAL PATCH (numpy>=2): keep float dtype
         y[1:3] = divdif
-        y[2] = np.diff(divdif.T).T / (x[2] - x[0])
+        # LOCAL PATCH (numpy>=2): np.diff returns a length-1 array here; numpy 2.x refuses to
+        # broadcast it into a scalar slot ('setting an array element with a sequence'). Older
+        # numpy squeezed silently. .item() restores the original behaviour exactly.
+        y[2] = np.diff(divdif.T).T.item() / (x[2] - x[0])
         y[1] -= y[2] * dx[0]
         dlk = y[[2, 1, 0]].shape[0]
         l = x[[0, 2]].shape[0] - 1
