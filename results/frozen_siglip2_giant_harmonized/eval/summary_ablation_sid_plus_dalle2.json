@@ -1,0 +1,18 @@
+{
+ "ablation": "sid_plus_dalle2",
+ "keep": [
+  "sid_set",
+  "DALLE2"
+ ],
+ "n_train_features": 13000,
+ "clean_auc_full_set": 0.9690920131481292,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.962245126968035,
+ "clean_auc_alt_real": 0.9683349885408709,
+ "shortcut_gap_clean": -0.006089861572835864,
+ "worst_transform": "resize@0.25",
+ "worst_auc": 0.8710425098864701,
+ "max_delta": 0.09120261708156485,
+ "mean_degraded_auc": 0.9363443048578465,
+ "best_robust_val_auc": 0.905984285570563
+}

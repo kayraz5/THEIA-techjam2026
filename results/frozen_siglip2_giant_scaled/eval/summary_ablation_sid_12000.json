@@ -1,0 +1,17 @@
+{
+ "ablation": "sid_12000",
+ "keep": [
+  "sid_set"
+ ],
+ "n_train_features": 24000,
+ "clean_auc_full_set": 0.9949251667194074,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.9938519809976353,
+ "clean_auc_alt_real": 0.996253628724217,
+ "shortcut_gap_clean": -0.0024016477265816905,
+ "worst_transform": "crop@0.8",
+ "worst_auc": 0.9926038037896384,
+ "max_delta": 0.001248177207996859,
+ "mean_degraded_auc": 0.9949169511246152,
+ "best_robust_val_auc": 0.9946933121360635
+}

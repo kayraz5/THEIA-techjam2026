@@ -1,0 +1,12 @@
+{
+ "name": "community_forensics",
+ "checkpoint": "results/frozen_siglip2_giant_scaled/head_ablation_sid_laion_mjv5.pt",
+ "n": 3759,
+ "n_fake": 2134,
+ "n_real": 1625,
+ "auc": 0.9643757479633767,
+ "err": 0.03562425203662334,
+ "acc@0.5": 0.8579409417398244,
+ "bal_acc@0.5": 0.87268113329969,
+ "majority_baseline": 0.5677041766427241
+}

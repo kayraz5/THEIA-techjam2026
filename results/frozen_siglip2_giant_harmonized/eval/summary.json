@@ -1,0 +1,104 @@
+{
+ "config": "frozen_siglip2_giant_harmonized",
+ "backbone": "google/siglip2-giant-opt-patch16-384",
+ "backbone_params_B": 1.163659776,
+ "checkpoint": "results/frozen_siglip2_giant_harmonized/head_best.pt",
+ "n_val_real_coco": 691,
+ "n_val_fake": 1309,
+ "n_alt_real": 1000,
+ "class_ratio_real:fake": "1:1.89",
+ "majority_class_baseline_acc": 0.6545,
+ "clean_auc_full_set": 0.9315848922402842,
+ "n_full_set": 13841,
+ "clean_auc_full_set_dedup": 0.9317820701822004,
+ "n_full_set_dedup": 8717,
+ "n_fake_dedup": 3719,
+ "n_real_dedup": 4998,
+ "full_set_bal_acc@0.5": 0.8621215420466501,
+ "full_set_acc@0.5": 0.8648941550466007,
+ "clean_auc": 0.9219452548813237,
+ "clean_auc_alt_real": 0.9487028265851795,
+ "shortcut_gap_clean": -0.02675757170385573,
+ "worst_transform": "resize@0.25",
+ "worst_auc": 0.8106258685555527,
+ "worst_auc_alt_real": 0.8648051948051948,
+ "max_delta": 0.11131938632577099,
+ "mean_degraded_auc": 0.8857970763624486,
+ "clean_bal_acc@0.5": 0.851911347356993,
+ "clean_acc@0.5": 0.854,
+ "thresholds": [
+  {
+   "threshold": 0.1,
+   "FPR_real": 0.46888567293777134,
+   "TPR_fake": 0.9472880061115355
+  },
+  {
+   "threshold": 0.2,
+   "FPR_real": 0.32416787264833574,
+   "TPR_fake": 0.9274255156608098
+  },
+  {
+   "threshold": 0.3,
+   "FPR_real": 0.24457308248914617,
+   "TPR_fake": 0.904507257448434
+  },
+  {
+   "threshold": 0.4,
+   "FPR_real": 0.19681620839363242,
+   "TPR_fake": 0.8777692895339955
+  },
+  {
+   "threshold": 0.5,
+   "FPR_real": 0.1548480463096961,
+   "TPR_fake": 0.8586707410236822
+  },
+  {
+   "threshold": 0.6,
+   "FPR_real": 0.11577424023154848,
+   "TPR_fake": 0.8334606569900688
+  },
+  {
+   "threshold": 0.7,
+   "FPR_real": 0.09985528219971057,
+   "TPR_fake": 0.8067226890756303
+  },
+  {
+   "threshold": 0.8,
+   "FPR_real": 0.07380607814761216,
+   "TPR_fake": 0.7822765469824293
+  },
+  {
+   "threshold": 0.9,
+   "FPR_real": 0.04486251808972504,
+   "TPR_fake": 0.7265087853323148
+  },
+  {
+   "threshold": 0.95,
+   "FPR_real": 0.02170767004341534,
+   "TPR_fake": 0.6592818945760123
+  },
+  {
+   "threshold": 0.99,
+   "FPR_real": 0.005788712011577424,
+   "TPR_fake": 0.4499618029029794
+  },
+  {
+   "threshold": 0.9965770840644836,
+   "FPR_real": 0.0,
+   "TPR_fake": 0.3009931245225363,
+   "note": "@FPR<=0.001"
+  },
+  {
+   "threshold": 0.9740263223648071,
+   "FPR_real": 0.008683068017366137,
+   "TPR_fake": 0.5775401069518716,
+   "note": "@FPR<=0.01"
+  },
+  {
+   "threshold": 0.8801550269126892,
+   "FPR_real": 0.049204052098408106,
+   "TPR_fake": 0.7394957983193278,
+   "note": "@FPR<=0.05"
+  }
+ ]
+}

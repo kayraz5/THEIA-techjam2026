@@ -1,0 +1,20 @@
+{
+ "ablation": "sid_laion_sdxl_mjv5",
+ "keep": [
+  "sid_set",
+  "laion5b",
+  "SDXL",
+  "mj_v5"
+ ],
+ "n_train_features": 40000,
+ "clean_auc_full_set": 0.9990510056787613,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.998998362665682,
+ "clean_auc_alt_real": 0.9993002291825822,
+ "shortcut_gap_clean": -0.0003018665169002288,
+ "worst_transform": "blur@2.0",
+ "worst_auc": 0.9983781435215844,
+ "max_delta": 0.0006202191440976002,
+ "mean_degraded_auc": 0.9990872812748307,
+ "best_robust_val_auc": 0.9987418727522583
+}

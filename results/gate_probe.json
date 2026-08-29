@@ -1,0 +1,88 @@
+{
+ "15-class (family+severity)": {
+  "accuracy": 0.5626626626626626,
+  "majority_baseline": 0.06666666666666667
+ },
+ "7-class (family only)": {
+  "accuracy": 0.6247247247247247,
+  "majority_baseline": 0.26666666666666666
+ },
+ "family_confusion_pct": {
+  "blur": {
+   "blur": 59.6,
+   "clean": 10.2,
+   "color": 7.1,
+   "crop": 3.8,
+   "jpeg": 4.7,
+   "noise": 2.3,
+   "resize": 33.2
+  },
+  "clean": {
+   "blur": 2.5,
+   "clean": 20.3,
+   "color": 9.9,
+   "crop": 4.4,
+   "jpeg": 6.2,
+   "noise": 2.0,
+   "resize": 0.2
+  },
+  "color": {
+   "blur": 3.3,
+   "clean": 14.0,
+   "color": 43.1,
+   "crop": 6.8,
+   "jpeg": 6.8,
+   "noise": 2.5,
+   "resize": 1.1
+  },
+  "crop": {
+   "blur": 3.6,
+   "clean": 7.5,
+   "color": 8.4,
+   "crop": 65.0,
+   "jpeg": 6.8,
+   "noise": 3.5,
+   "resize": 2.0
+  },
+  "jpeg": {
+   "blur": 7.5,
+   "clean": 34.8,
+   "color": 20.4,
+   "crop": 13.5,
+   "jpeg": 66.0,
+   "noise": 7.6,
+   "resize": 0.8
+  },
+  "noise": {
+   "blur": 4.2,
+   "clean": 10.2,
+   "color": 8.9,
+   "crop": 4.8,
+   "jpeg": 7.4,
+   "noise": 80.8,
+   "resize": 1.1
+  },
+  "resize": {
+   "blur": 19.4,
+   "clean": 3.0,
+   "color": 2.3,
+   "crop": 1.8,
+   "jpeg": 2.2,
+   "noise": 1.4,
+   "resize": 61.8
+  }
+ },
+ "family_recall": {
+  "blur": 0.5960960960960962,
+  "clean": 0.20270270270270271,
+  "color": 0.43093093093093093,
+  "crop": 0.6501501501501501,
+  "jpeg": 0.6595345345345346,
+  "noise": 0.8083083083083084,
+  "resize": 0.6178678678678678
+ },
+ "2-class (clean vs degraded)": {
+  "accuracy": 0.8816816816816817,
+  "majority_baseline": 0.9333333333333333
+ }
+}

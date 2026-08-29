@@ -1,0 +1,60 @@
+# Frozen arm re-run AFTER the WildFake train-format harmonization fix (commit 2e7b851,
+# src/data/registry.py: every TRAINING image re-encoded through one JPEG q90 pass so file
+# format stops correlating with label). Validation/alt-real untouched.
+# Identical to configs/frozen_siglip2_giant.yaml except name/output_dir — see issue #3.
+# Arm 1: reference configuration, frozen backbone + linear head (default / fast iteration)
+name: frozen_siglip2_giant_harmonized
+seed: 0
+backbone:
+  name: google/siglip2-giant-opt-patch16-384
+  fallback: google/siglip2-so400m-patch14-384   # used only if giant exceeds 2B or does not fit in memory
+  image_size: 384
+  dtype: bfloat16
+mode: frozen              # frozen | lora
+lora:
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+data:
+  sources: [sid_set, wildfake]
+  sid_set:
+    max_train: 4000       # subsample from 8 downloaded shards (140 GB full set not feasible on a laptop); 0 = all
+    include_tampered: false   # label 2 (tampered) excluded; label 1 (full synthetic) -> fake
+  wildfake:
+    root: data/wildfake
+    train_subsets: [real_laion5b, dalle2]   # sdxl/mjv5 live in 50 GB archives; not pulled for the laptop run (see README)
+    max_per_subset: 3000
+  cifake:
+    enabled: false        # 32x32 images; smoke-test only. See README.
+    root: data/cifake
+  validation:
+    name: wildfake_coco_dalle3   # organisers' designated subset: 4,998 COCO val2017 real + 8,843 DALL-E Advanced fake
+    exclusion_list: data/exclusion/wildfake_val_hashes.txt
+  alt_real:
+    name: wildfake_imagenet_heldout  # second real-only held-out set from a non-COCO source (shortcut check, spec §3)
+    n: 1000
+degradation:
+  prob: 1.0
+  min_transforms: 1
+  max_transforms: 3
+  hflip: 0.5
+  seed: 0
+train:
+  epochs: 30
+  feature_epochs: 2      # frozen mode: number of independent degradation draws of the train set cached as features
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 0.01
+  warmup_epochs: 1
+  loss: ce               # ce | focal
+  focal_gamma: 2.0
+  focal_alpha: 0.5
+  weighted_sampler: true
+  amp: true
+  checkpoint_metric: robust_auc
+features:
+  cache_dir: data/features
+eval:
+  batch_size: 32
+  n_eval_max: 2000       # seeded subset used for the per-condition grid + degraded checkpointing (compute: ~5 img/s on M5 Pro). Clean AUC is ALSO reported on the full set.
+output_dir: results/frozen_siglip2_giant_harmonized

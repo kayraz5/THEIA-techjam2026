@@ -1,0 +1,17 @@
+{
+ "ablation": "wildfake",
+ "keep": [
+  "wildfake"
+ ],
+ "n_train_features": 11000,
+ "clean_auc_full_set": 0.6234265050586558,
+ "n_full_set": 13841,
+ "clean_auc_subset": 0.6095515959310971,
+ "clean_auc_alt_real": 0.7017051184110007,
+ "shortcut_gap_clean": -0.0921535224799036,
+ "worst_transform": "noise@0.1",
+ "worst_auc": 0.263283579449409,
+ "max_delta": 0.3462680164816881,
+ "mean_degraded_auc": 0.454203915482783,
+ "best_robust_val_auc": 0.35477861714347625
+}

@@ -7,3 +7,6 @@ results/**/*.pt
 results/**/features/
 .pytest_cache/
 .DS_Store
+
+# ship-candidate head is only ~16 KB — keep it so the repo is self-contained
+!results/frozen_siglip2_giant_mjv5/head_best.pt
