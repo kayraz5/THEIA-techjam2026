@@ -3,7 +3,7 @@
 Prototype for a hackathon track on detecting AI-generated images **under real-world transformations**
 (JPEG, blur, resize, noise, colour shift, crop). Given an image it outputs `p(AI-generated) ∈ [0,1]`.
 
-The engine reproduces the 5th-place NTIRE 2026 *Robust AI-Generated Image Detection* recipe exactly:
+The engine reproduces the 5th-place NTIRE 2026 _Robust AI-Generated Image Detection_ recipe exactly:
 
 ```
 image -> squish-resize 384x384 (no crop, aspect ignored)
@@ -24,13 +24,13 @@ reported without balanced accuracy and the majority-class baseline, because the 
 
 `configs/frozen_siglip2_giant_ship.yaml` -> `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB).
 
-| | |
-|---|---|
-| Designated benchmark, clean AUC (13,841 imgs) | **0.9991** (dedup 0.9991) |
-| Worst single transform | noise@0.1 **0.9951** (max delta 0.0039) |
-| Accuracy @ 0.5 / balanced acc / majority baseline | 0.9850 / 0.9856 / 0.6545 |
-| Shortcut gap (COCO reals vs ImageNet reals) | +0.0011 |
-| **External generalization** (Community Forensics-Eval, 3,759 imgs, unseen) | **0.9917** |
+|                                                                            |                                         |
+| -------------------------------------------------------------------------- | --------------------------------------- |
+| Designated benchmark, clean AUC (13,841 imgs)                              | **0.9991** (dedup 0.9991)               |
+| Worst single transform                                                     | noise@0.1 **0.9951** (max delta 0.0039) |
+| Accuracy @ 0.5 / balanced acc / majority baseline                          | 0.9850 / 0.9856 / 0.6545                |
+| Shortcut gap (COCO reals vs ImageNet reals)                                | +0.0011                                 |
+| **External generalization** (Community Forensics-Eval, 3,759 imgs, unseen) | **0.9917**                              |
 
 Selected on **external** generalization, not the designated benchmark - the benchmark is saturated
 (0.9994 is reachable, leaving ~0.0006 of headroom, below the noise floor for 4,998 real images) and can
@@ -40,15 +40,15 @@ no longer rank arms. The previous candidate (`frozen_siglip2_giant_mjv5`, 0.9994
 
 ### Hackathon deliverables — where each one lives
 
-| Deliverable | Location |
-|---|---|
-| Inference script (image dir → JSON of `image_path`, `pred`) | [`predict.py`](predict.py) |
-| Robustness Evaluation Summary (clean vs each transform) | [`docs/ROBUSTNESS_SUMMARY.md`](docs/ROBUSTNESS_SUMMARY.md) |
-| Error Analysis Note (FPs, FNs, trade-offs) | [`docs/ERROR_ANALYSIS.md`](docs/ERROR_ANALYSIS.md) |
-| Full technical report (methodology, every parameter, literature) | [`docs/REPORT.md`](docs/REPORT.md) |
-| Dataset and model license audit | [`docs/DATA_LICENSES.md`](docs/DATA_LICENSES.md) |
-| Experiment log (25 issues, each with a results comment) | GitHub Issues |
-| Demo video | *link in Devpost submission* |
+| Deliverable                                                      | Location                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| Inference script (image dir → JSON of `image_path`, `pred`)      | [`predict.py`](predict.py)                                 |
+| Robustness Evaluation Summary (clean vs each transform)          | [`docs/ROBUSTNESS_SUMMARY.md`](docs/ROBUSTNESS_SUMMARY.md) |
+| Error Analysis Note (FPs, FNs, trade-offs)                       | [`docs/ERROR_ANALYSIS.md`](docs/ERROR_ANALYSIS.md)         |
+| Full technical report (methodology, every parameter, literature) | [`docs/REPORT.md`](docs/REPORT.md)                         |
+| Dataset and model license audit                                  | [`docs/DATA_LICENSES.md`](docs/DATA_LICENSES.md)           |
+| Experiment log (25 issues, each with a results comment)          | GitHub Issues                                              |
+| Demo video                                                       | _link in Devpost submission_                               |
 
 ---
 
@@ -94,44 +94,46 @@ keep `--workers`/dataloader workers at 2 on unified-memory Macs (more starves th
 
 ## Reproduce every number
 
-| Step | Command | Output |
-|---|---|---|
-| Param check + backbone load | `python -c "from src.common import *; build_backbone(load_config('configs/frozen_siglip2_giant.yaml'), get_device())"` | prints `[param-check] ... 1.164B` |
-| Degradation unit tests | `pytest tests/test_degradation.py` | 8 tests |
-| Pipeline smoke test (stub backbone) | `pytest tests/test_pipeline_smoke.py` | train→eval→predict in ~2 min |
-| Validation set + exclusion list | `python -m src.data.build_val --config configs/frozen_siglip2_giant.yaml` | `data/exclusion/wildfake_val_hashes.txt` |
-| Frozen baseline (arm 1) | `python -m src.train --config configs/frozen_siglip2_giant.yaml` | `results/frozen_siglip2_giant/head_best.pt`, `train_summary.json` |
-| **Ship arm** (needs `prepare_data_ship.sh`) | `python -m src.train --config configs/frozen_siglip2_giant_ship.yaml && python -m src.evaluate --config configs/frozen_siglip2_giant_ship.yaml` | `results/frozen_siglip2_giant_ship/` |
-| External generalization (headline 0.9917 / 0.9732) | `python scripts/eval_external.py --config configs/frozen_siglip2_giant_ship.yaml` then `... --source dir --root data/rrdataset/images --name rrdataset` | `results/frozen_siglip2_giant_ship/eval/external_*.json` |
-| One-class downscale control | `python scripts/resolution_control.py` | `results/frozen_siglip2_giant_2x2/resolution_control.txt` |
-| Full eval grid | `python -m src.evaluate --config configs/frozen_siglip2_giant.yaml` | `results/frozen_siglip2_giant/eval/{auc_grid.csv,auc_grid.png,thresholds.csv,roc.png,fpr_vs_threshold.png,errors_fp.png,errors_fn.png,summary.json}` |
-| LoRA arm | `python -m src.train --config configs/lora_siglip2_giant.yaml && python -m src.evaluate --config configs/lora_siglip2_giant.yaml` | `results/lora_siglip2_giant/` |
-| CLIP ViT-L/14 linear-probe baseline | same two commands with `configs/baseline_clip_vitl14.yaml` | `results/baseline_clip_vitl14/` |
-| DINOv3 comparison | `configs/frozen_dinov3_large.yaml` (gated HF repo: `export HF_TOKEN=...` after requesting access) | `results/frozen_dinov3_large/` |
-| Comparison table | `python -m src.compare results/baseline_clip_vitl14 results/frozen_siglip2_giant results/lora_siglip2_giant` | `results/comparison.csv` |
-| Deliverable | `python predict.py --image_dir <dir> --output preds.json` (defaults to the ship config + committed head; `--config/--checkpoint` to override) | JSON `[{"image_path", "pred"}]` |
+| Step                                               | Command                                                                                                                                                 | Output                                                                                                                                               |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Param check + backbone load                        | `python -c "from src.common import *; build_backbone(load_config('configs/frozen_siglip2_giant.yaml'), get_device())"`                                  | prints `[param-check] ... 1.164B`                                                                                                                    |
+| Degradation unit tests                             | `pytest tests/test_degradation.py`                                                                                                                      | 8 tests                                                                                                                                              |
+| Pipeline smoke test (stub backbone)                | `pytest tests/test_pipeline_smoke.py`                                                                                                                   | train→eval→predict in ~2 min                                                                                                                         |
+| Validation set + exclusion list                    | `python -m src.data.build_val --config configs/frozen_siglip2_giant.yaml`                                                                               | `data/exclusion/wildfake_val_hashes.txt`                                                                                                             |
+| Frozen baseline (arm 1)                            | `python -m src.train --config configs/frozen_siglip2_giant.yaml`                                                                                        | `results/frozen_siglip2_giant/head_best.pt`, `train_summary.json`                                                                                    |
+| **Ship arm** (needs `prepare_data_ship.sh`)        | `python -m src.train --config configs/frozen_siglip2_giant_ship.yaml && python -m src.evaluate --config configs/frozen_siglip2_giant_ship.yaml`         | `results/frozen_siglip2_giant_ship/`                                                                                                                 |
+| External generalization (headline 0.9917 / 0.9732) | `python scripts/eval_external.py --config configs/frozen_siglip2_giant_ship.yaml` then `... --source dir --root data/rrdataset/images --name rrdataset` | `results/frozen_siglip2_giant_ship/eval/external_*.json`                                                                                             |
+| One-class downscale control                        | `python scripts/resolution_control.py`                                                                                                                  | `results/frozen_siglip2_giant_2x2/resolution_control.txt`                                                                                            |
+| Full eval grid                                     | `python -m src.evaluate --config configs/frozen_siglip2_giant.yaml`                                                                                     | `results/frozen_siglip2_giant/eval/{auc_grid.csv,auc_grid.png,thresholds.csv,roc.png,fpr_vs_threshold.png,errors_fp.png,errors_fn.png,summary.json}` |
+| LoRA arm                                           | `python -m src.train --config configs/lora_siglip2_giant.yaml && python -m src.evaluate --config configs/lora_siglip2_giant.yaml`                       | `results/lora_siglip2_giant/`                                                                                                                        |
+| CLIP ViT-L/14 linear-probe baseline                | same two commands with `configs/baseline_clip_vitl14.yaml`                                                                                              | `results/baseline_clip_vitl14/`                                                                                                                      |
+| DINOv3 comparison                                  | `configs/frozen_dinov3_large.yaml` (gated HF repo: `export HF_TOKEN=...` after requesting access)                                                       | `results/frozen_dinov3_large/`                                                                                                                       |
+| Comparison table                                   | `python -m src.compare results/baseline_clip_vitl14 results/frozen_siglip2_giant results/lora_siglip2_giant`                                            | `results/comparison.csv`                                                                                                                             |
+| Deliverable                                        | `python predict.py --image_dir <dir> --output preds.json` (defaults to the ship config + committed head; `--config/--checkpoint` to override)           | JSON `[{"image_path", "pred"}]`                                                                                                                      |
 
 All randomness is seeded (`seed: 0` in configs; degradation draws are seeded per (epoch, index)).
 
 ## Data
 
-| Source | Role | What we use | Why |
-|---|---|---|---|
-| [SID_Set](https://huggingface.co/datasets/saberzl/SID_Set) | train | baseline arm: 4,000 imgs from shards 0–7 of 249; **ship arm: 8,000 seeded from shards 0–23** (label 0 real / 1 full-synthetic; label 2 *tampered* excluded) | full set is 140 GB |
-| [WildFake](https://modelscope.cn/datasets/hy2628982280/WildFake) | train | baseline arm: 3,000 LAION-5B reals + 2,500 DALL-E 2 fakes. **Ship arm: 3,000 LAION reals + 3,000 COCO test2017 reals + 2,500 MJ-v5 fakes + 3,000 across six GAN families** (DF-GAN, GALIP, GigaGAN, starGAN, styleGAN, BigGAN). All seeded slices pulled by HTTP-range from the zips ([remote_zip.py](scripts/remote_zip.py), [prepare_data_ship.sh](scripts/prepare_data_ship.sh)) | full set is 1.29 TB; never downloaded whole |
-| [Community Forensics-Eval](https://huggingface.co/datasets/OwensLab/CommunityForensics-Eval) | held-out **external** | 3,759 imgs from 30 of 413 shards | generalization to unseen generators (headline 0.9917) |
-| [RRDataset](https://zenodo.org/records/14963880) | held-out **external** | all 3,000 train+val imgs (1,500/1,500) | second, independent generalization check (0.9732) |
-| WildFake **validation** | held-out | **4,998 COCO val2017 reals + 8,843 DALL-E Advanced (dalle3) fakes** — the organisers' designated subset | never trained on |
-| WildFake ImageNet reals | held-out **alt-real** | 1,000 seeded ImageNet reals | COCO-shortcut check (below) |
-| [CIFAKE](https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images) | **off** | `data.cifake.enabled: false` | 32×32 px: forensic artefacts don't survive, nothing transfers to 384 px inputs. Smoke-test only. |
+| Source                                                                                           | Role                  | What we use                                                                                                                                                                                                                                                                                                                                                                         | Why                                                                                              |
+| ------------------------------------------------------------------------------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [SID_Set](https://huggingface.co/datasets/saberzl/SID_Set)                                       | train                 | baseline arm: 4,000 imgs from shards 0–7 of 249; **ship arm: 8,000 seeded from shards 0–23** (label 0 real / 1 full-synthetic; label 2 _tampered_ excluded)                                                                                                                                                                                                                         | full set is 140 GB                                                                               |
+| [WildFake](https://modelscope.cn/datasets/hy2628982280/WildFake)                                 | train                 | baseline arm: 3,000 LAION-5B reals + 2,500 DALL-E 2 fakes. **Ship arm: 3,000 LAION reals + 3,000 COCO test2017 reals + 2,500 MJ-v5 fakes + 3,000 across six GAN families** (DF-GAN, GALIP, GigaGAN, starGAN, styleGAN, BigGAN). All seeded slices pulled by HTTP-range from the zips ([remote_zip.py](scripts/remote_zip.py), [prepare_data_ship.sh](scripts/prepare_data_ship.sh)) | full set is 1.29 TB; never downloaded whole                                                      |
+| [Community Forensics-Eval](https://huggingface.co/datasets/OwensLab/CommunityForensics-Eval)     | held-out **external** | 3,759 imgs from 30 of 413 shards                                                                                                                                                                                                                                                                                                                                                    | generalization to unseen generators (headline 0.9917)                                            |
+| [RRDataset](https://zenodo.org/records/14963880)                                                 | held-out **external** | all 3,000 train+val imgs (1,500/1,500)                                                                                                                                                                                                                                                                                                                                              | second, independent generalization check (0.9732)                                                |
+| WildFake **validation**                                                                          | held-out              | **4,998 COCO val2017 reals + 8,843 DALL-E Advanced (dalle3) fakes** — the organisers' designated subset                                                                                                                                                                                                                                                                             | never trained on                                                                                 |
+| WildFake ImageNet reals                                                                          | held-out **alt-real** | 1,000 seeded ImageNet reals                                                                                                                                                                                                                                                                                                                                                         | COCO-shortcut check (below)                                                                      |
+| [CIFAKE](https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images) | **off**               | `data.cifake.enabled: false`                                                                                                                                                                                                                                                                                                                                                        | 32×32 px: forensic artefacts don't survive, nothing transfers to 384 px inputs. Smoke-test only. |
 
 ### Leakage guard
-`src/data/exclusion.py` hashes the *decoded pixels* (64×64 RGB + original size) of every validation and
+
+`src/data/exclusion.py` hashes the _decoded pixels_ (64×64 RGB + original size) of every validation and
 alt-real image. `src/train.py` asserts on **every run** that zero training samples hit that list before any
 feature is extracted; the pipeline smoke test verifies the assertion fires. Structural guards too: `dalle3`
 is refused as a training subset and `real_coco` is filtered to `test2017` only.
 
 ### The COCO shortcut
+
 All designated-validation reals are COCO photos. A model can learn "looks like COCO" instead of "is real".
 We therefore report AUC twice for every cell — fakes vs COCO reals **and** fakes vs ImageNet reals — and
 print the gap. A large gap = shortcut, not success.
@@ -141,16 +143,16 @@ print the gap. A large gap = shortcut, not success.
 `distortion_prob = 1.0`: every training image gets 1–3 distinct transform families, each at an independently
 sampled severity, then horizontal flip p=0.5. The same module builds the evaluation conditions, seeded.
 
-| Family | Levels |
-|---|---|
-| JPEG quality | 90 / 70 / 50 / 30 |
-| Gaussian blur σ | 0.5 / 1.0 / 2.0 |
-| Resize (down then back up) | 0.5× / 0.25× |
-| Gaussian noise σ | 0.02 / 0.05 / 0.10 |
-| Colour jitter (brightness, contrast, saturation) | ±20 % |
-| Centre crop | 80 % |
+| Family                                           | Levels             |
+| ------------------------------------------------ | ------------------ |
+| JPEG quality                                     | 90 / 70 / 50 / 30  |
+| Gaussian blur σ                                  | 0.5 / 1.0 / 2.0    |
+| Resize (down then back up)                       | 0.5× / 0.25×       |
+| Gaussian noise σ                                 | 0.02 / 0.05 / 0.10 |
+| Colour jitter (brightness, contrast, saturation) | ±20 %              |
+| Centre crop                                      | 80 %               |
 
-**Official NTIRE pipeline.** The challenge's `distort_images` code *was* downloadable
+**Official NTIRE pipeline.** The challenge's `distort_images` code _was_ downloadable
 (Codabench 12761 → Data → "Transformations Script"); it is vendored in
 [third_party/aug_utils_train](third_party/aug_utils_train/) and exposed via `degradation.backend: official`.
 It was **not** made the default because (a) its pool has no resize/crop, which are two of our six evaluation
@@ -158,6 +160,7 @@ families, and (b) its level values differ from the table above. Our eval grid th
 implementation; the official pipeline is available for a training-augmentation ablation.
 
 ## Training
+
 Cross-entropy (focal γ=2, α=0.5 as a config switch), AdamW wd 0.01, cosine LR with 1-epoch warmup,
 weighted sampler for class imbalance, mixed precision, checkpoint on **best robust validation AUC**
 (AUC on a randomly-degraded copy of the validation subset), not clean AUC.
@@ -186,7 +189,7 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
 
 - **The designated benchmark is saturated.** 0.9994 is reachable, leaving ~0.0006 of headroom — below the
   noise floor for 4,998 real images. It can no longer rank arms; every decision after the first week was
-  made on the external sets. Issue #20 further shows the benchmark ranks training generators *backwards*
+  made on the external sets. Issue #20 further shows the benchmark ranks training generators _backwards_
   relative to generalization, because its fakes (DALL-E 3, 2023) reward vintage-matched training data.
 - **The designated validation fakes are one generator and heavily duplicated.** 8,843 DALL-E files contain
   only 3,719 unique images. We report clean AUC on the set as given and deduplicated.
@@ -216,6 +219,7 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
    really "frozen-probe-limited".
 
 ## Deviations from the spec (all logged in the run summary too)
+
 1. Training data subsampled (see table). The shipped mix differs from the spec's `[laion, dalle2]` WildFake slice — DALL-E 2 was dropped and COCO test2017 reals, MJv5 and six GAN families added; every change is measured in `docs/REPORT.md` §6–7.
 2. Per-condition grid on a 2,000-image seeded subset; clean AUC also on full set.
 3. Severity levels: the spec table gives 4/3/2/3/1/1 levels per family (not 5 each); we sample from the table.
@@ -224,6 +228,7 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
 6. Frozen mode uses 2 cached augmentation draws of the training set (`feature_epochs: 2` in every config; the code default if unset is 3), then 30 head epochs.
 
 ## Repo layout
+
 ```
 configs/        one YAML per arm (18). Shipped: frozen_siglip2_giant_ship. Baseline: frozen_siglip2_giant.
                 Others are the ablation arms referenced in docs/REPORT.md (2x2, gan, mjv5, sidonly, official, ...)
@@ -247,6 +252,7 @@ requirements-lock.txt   exact versions used for every reported number
 
 ## Team and contributions
 
-<!-- TODO before submission: one line per team member. -->
+<!-- TODO before submission: one line per team member -->
+
 - Chin Mun Yau — spec, data plumbing, model, eval harness, experiment programme (issues #1–#25).
-- *(other members: to be added)*
+- _(other members: to be added)_
