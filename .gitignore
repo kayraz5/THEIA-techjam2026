@@ -15,3 +15,8 @@ results/**/features/
 # demo artefacts (scripts/demo.sh)
 demo_images/
 demo_preds.json
+
+# project_demo media (project_demo/fetch_videos.py) — fetched from the original hosts at run
+# time and never redistributed. See docs/DATA_LICENSES.md.
+project_demo/videos/
+project_demo/videos_raw/

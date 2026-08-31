@@ -1,0 +1,4 @@
+# Demo-only dependencies. The root requirements.txt / requirements-lock.txt are the audited
+# record of the stack every reported number was produced with, and are deliberately untouched.
+fastapi>=0.115
+uvicorn>=0.30

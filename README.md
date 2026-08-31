@@ -48,6 +48,7 @@ no longer rank arms. The previous candidate (`frozen_siglip2_giant_mjv5`, 0.9994
 | Full technical report (methodology, every parameter, literature) | [`docs/REPORT.md`](docs/REPORT.md) |
 | Dataset and model license audit | [`docs/DATA_LICENSES.md`](docs/DATA_LICENSES.md) |
 | Experiment log (25 issues, each with a results comment) | GitHub Issues |
+| Live web demo (vertical feed, real-time detection on video frames) | [`project_demo/`](project_demo/) |
 | Demo video | *link in Devpost submission* |
 
 ---
@@ -235,6 +236,11 @@ src/train.py    frozen + lora
 src/evaluate.py grid, deltas, error rates, thresholds/ROC, contact sheets
 src/compare.py  baseline comparison table
 predict.py      deliverable CLI
+project_demo/   live web demo: vertical video feed, frames scored on MPS as you scroll.
+                detector.py (model lifecycle + startup self-test), server.py (FastAPI),
+                fetch_videos.py (manifest -> ffmpeg normalise -> validate), preflight.py,
+                videos.json (manifest + pre-registered clip criteria), static/ (no build step).
+                Media is gitignored and fetched from the original hosts; see docs/DATA_LICENSES.md.
 scripts/        prepare_data.sh + prepare_data_ship.sh (all data pulls), remote_zip.py (HTTP-range zip slicing),
                 eval_external.py, data_ablation.py, resolution_control.py, head_sweep.py, make_results.py.
                 run_queue*.sh / run_*_chain.sh / dl_*.sh are the historical launch scripts for issues #1-#25;
