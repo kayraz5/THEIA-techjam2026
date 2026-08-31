@@ -1,44 +1,114 @@
 # Robust AI-Generated Image Detector
 
-Prototype for a hackathon track on detecting AI-generated images **under real-world transformations**
-(JPEG, blur, resize, noise, colour shift, crop). Given an image it outputs `p(AI-generated) ∈ [0,1]`.
+Detect AI-generated images even after common real-world transformations such as JPEG compression,
+blur, resizing, noise, colour shifts, and cropping. Given an image, the detector returns
+`p(AI-generated) ∈ [0,1]`.
 
-The engine reproduces the 5th-place NTIRE 2026 *Robust AI-Generated Image Detection* recipe exactly:
+This repository contains the trained detector, evaluation pipeline, reproducible experiment results,
+and a live vertical-video demo.
 
-```
-image -> squish-resize 384x384 (no crop, aspect ignored)
-      -> SigLIP2 vision tower (google/siglip2-giant-opt-patch16-384, 1.164 B params, text tower discarded)
-      -> final-layer patch tokens -> global average pool (no CLS, no attention pooling)
-      -> one linear layer -> 2 logits
-```
-
-Every model is parameter-counted at startup and asserted `< 2 B` ([backbone.py](src/models/backbone.py)).
-Backbone is swappable by config (SigLIP2 / DINOv3 / CLIP share one code path).
-
-**Headline metric is ROC AUC**, reported for clean images and per transform/severity. Accuracy is never
-reported without balanced accuracy and the majority-class baseline, because the validation split is 1 : 1.77.
-
-> **RESULTS: see [results/RESULTS.md](results/RESULTS.md)** (auto-filled from `results/<arm>/eval/summary.json`).
-
-### Ship candidate
-
-`configs/frozen_siglip2_giant_ship.yaml` -> `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB).
+## At a glance
 
 | | |
 |---|---|
-| Designated benchmark, clean AUC (13,841 imgs) | **0.9991** (dedup 0.9991) |
-| Worst single transform | noise@0.1 **0.9951** (max delta 0.0039) |
-| Accuracy @ 0.5 / balanced acc / majority baseline | 0.9850 / 0.9856 / 0.6545 |
-| Shortcut gap (COCO reals vs ImageNet reals) | +0.0011 |
-| **External generalization** (Community Forensics-Eval, 3,759 imgs, unseen) | **0.9917** |
+| Best external ROC AUC | **0.9917** on Community Forensics-Eval |
+| Designated benchmark ROC AUC | **0.9991** clean; **0.9951** under the worst tested transform |
+| Model | SigLIP2-giant vision tower + one linear classification layer |
+| Model size | 1.164B parameters; asserted below the 2B limit at startup |
+| Input | An image or a directory of images |
+| Output | A probability from 0 (real) to 1 (AI-generated) |
+| Main metric | ROC AUC, reported clean and by transform/severity |
 
-Selected on **external** generalization, not the designated benchmark - the benchmark is saturated
-(0.9994 is reachable, leaving ~0.0006 of headroom, below the noise floor for 4,998 real images) and can
-no longer rank arms. The previous candidate (`frozen_siglip2_giant_mjv5`, 0.9994 designated) scores
-**0.9715** on the same external set under a like-for-like comparison. Full reasoning:
-[docs/REPORT.md](docs/REPORT.md), section 7.8.
+**Start here:** [run the detector](#quick-start) · [review the results](results/RESULTS.md) ·
+[open the technical report](docs/REPORT.md) · [run the web demo](project_demo/README.md)
 
-### Hackathon deliverables — where each one lives
+## How it works
+
+The detector reproduces the 5th-place NTIRE 2026 *Robust AI-Generated Image Detection* recipe:
+
+```
+image
+  → squish-resize to 384×384 (no crop; aspect ratio ignored)
+  → SigLIP2-giant vision tower (text tower discarded)
+  → mean-pool the final-layer patch tokens
+  → one linear layer
+  → real / AI-generated logits
+```
+
+The vision tower is `google/siglip2-giant-opt-patch16-384` (1.164B parameters). The model does not use
+a CLS token or attention pooling. Every backbone is parameter-counted at startup and must remain below
+2B parameters ([backbone.py](src/models/backbone.py)). SigLIP2, DINOv3, and CLIP all share the same
+configurable code path.
+
+## Results
+
+The shipped model is `configs/frozen_siglip2_giant_ship.yaml`, paired with the 16KB linear-head
+checkpoint at `results/frozen_siglip2_giant_ship/head_best.pt`.
+
+| Evaluation | Result |
+|---|---:|
+| Community Forensics-Eval (3,759 unseen images) | **0.9917 ROC AUC** |
+| Designated benchmark, clean (13,841 images) | **0.9991 ROC AUC** (0.9991 deduplicated) |
+| Worst single transform: Gaussian noise at σ=0.1 | **0.9951 ROC AUC** (maximum drop: 0.0039) |
+| Accuracy at 0.5 | 0.9850 |
+| Balanced accuracy at 0.5 | 0.9856 |
+| Majority-class baseline | 0.6545 |
+| COCO-real vs ImageNet-real shortcut gap | +0.0011 |
+
+The model was selected on **external generalization**, not the designated benchmark. The benchmark is
+saturated: 0.9994 is reachable, leaving about 0.0006 of headroom—below the noise floor for 4,998 real
+images. The previous candidate, `frozen_siglip2_giant_mjv5`, reaches 0.9994 on the designated benchmark
+but only **0.9715** on the same external set in a like-for-like comparison.
+
+The headline metric throughout this project is ROC AUC, reported for clean images and for every
+transform/severity. Accuracy is always accompanied by balanced accuracy and the majority-class baseline
+because the validation split is imbalanced at 1:1.77. See [the complete results](results/RESULTS.md) or
+[the model-selection reasoning](docs/REPORT.md) (section 7.8).
+
+## Quick start
+
+### Requirements
+
+- Python 3.12
+- About 2.3GB for the model download
+- macOS with Apple Silicon, Linux with an NVIDIA GPU, or CPU-only execution
+- WSL on Windows if you plan to run the data-preparation scripts
+
+The code automatically selects CUDA, then MPS, then CPU. CPU execution uses fp32.
+
+### Install and verify
+
+```bash
+uv venv --python 3.12 .venv
+source .venv/bin/activate
+uv pip install -r requirements-lock.txt
+
+# Offline smoke tests; no model or dataset download required
+pytest tests/test_degradation.py tests/test_pipeline_smoke.py
+```
+
+`requirements-lock.txt` contains the exact versions used for the reported results. Use
+`requirements.txt` instead if you prefer the latest compatible versions. On NVIDIA systems, install
+the matching CUDA build of PyTorch first by following the [PyTorch installation guide](https://pytorch.org/get-started/locally/).
+
+### Run the detector
+
+```bash
+python predict.py --image_dir path/to/images --output preds.json
+```
+
+The first run downloads about 2.3GB of SigLIP2-giant weights from Hugging Face; no token is required.
+The command uses the shipped config and checkpoint by default and writes:
+
+```json
+[
+  {"image_path": "path/to/image.jpg", "pred": 0.9972}
+]
+```
+
+Use `--config` and `--checkpoint` to select a different experiment arm.
+
+## Project guide
 
 | Deliverable | Location |
 |---|---|
@@ -51,49 +121,25 @@ no longer rank arms. The previous candidate (`frozen_siglip2_giant_mjv5`, 0.9994
 | Live web demo (vertical feed, real-time detection on video frames) | [`project_demo/`](project_demo/) |
 | Demo video | *link in Devpost submission* |
 
----
+## Reproduce the results
 
-## Setup
+### Prepare the data
 
-Tested on macOS (Apple Silicon, MPS). Linux with an NVIDIA GPU and CPU-only machines work through the same
-code path (`src/common.py:get_device()` picks `cuda` → `mps` → `cpu`; CPU forces fp32). **Windows: use WSL**
-(the data scripts need `bash`, `curl`, `unzip`, `tar`); the Python side itself is platform-neutral.
+Data is needed only for retraining and evaluation:
 
 ```bash
-# 1. Environment (Python 3.12). requirements.txt has ranges; requirements-lock.txt pins the exact versions
-#    every number in this repo was produced with (torch 2.13, transformers 5.15, peft 0.20, numpy 2.5).
-uv venv --python 3.12 .venv && source .venv/bin/activate      # Windows/WSL: same; native PowerShell: .venv\Scripts\activate
-uv pip install -r requirements-lock.txt                        # or -r requirements.txt for latest compatible
-#    NVIDIA GPU: install the matching CUDA build of torch FIRST from https://pytorch.org/get-started/locally/
-#    (plain `pip install torch` on Linux/Windows may give a CPU-only wheel), then run the line above.
+# About 5GB: base SID_Set and WildFake slices, validation set, exclusion list
+scripts/prepare_data.sh
 
-# 2. Quick verify — any OS, no data, no downloads, ~3 min on CPU
-pytest tests/test_degradation.py tests/test_pipeline_smoke.py  # stub backbone; exercises train -> eval -> predict
-
-# 3. Run the shipped detector on your own images (first run downloads the ~2.3 GB SigLIP2-giant weights
-#    from Hugging Face into ~/.cache/huggingface; no token needed)
-python predict.py --image_dir <dir> --output preds.json        # uses configs/frozen_siglip2_giant_ship.yaml
-                                                               # + results/frozen_siglip2_giant_ship/head_best.pt (16 KB, in git)
-
-# 4. Data — only needed to retrain / re-evaluate
-scripts/prepare_data.sh           # ~5 GB: base slices of SID_Set + WildFake, validation set, exclusion list
-scripts/prepare_data_ship.sh      # ~13 GB more: the ship training mix (SID 8-23, COCO test2017, MJv5, 6 GAN
-                                  #   families) + the two external eval sets (Community Forensics, RRDataset)
+# About 13GB: shipped training mix and two external evaluation sets
+scripts/prepare_data_ship.sh
 ```
 
-Disk: ~2.3 GB model weights (+2 GB if the so400m fallback triggers), ~20 GB `data/` after both scripts, plus
-feature caches in `data/features/` (~1 GB per arm). Nothing under `data/` or `logs/` is in git.
+Allow about 20GB for `data/`, plus roughly 1GB per experiment arm for feature caches under
+`data/features/`. Model weights require about 2.3GB, plus another 2GB if the so400m fallback is used.
+Nothing under `data/` or `logs/` is tracked by Git.
 
-Hardware used: Apple M5 Pro, 64 GB unified memory (MPS, bf16). SigLIP2-giant runs at ~5.4 img/s here;
-this throughput dictated every subsampling decision below. On an 80 GB GPU nothing needs subsampling —
-set `max_train: 0`, `n_eval_max: 0`. Expect ~50–100 img/s on an A100, and ~0.3–0.5 img/s on CPU (fine for
-`predict.py` on a few hundred images; not for training/eval — the ship extraction is ~35 k images).
-
-**Runtime pitfalls (all platforms)**: the machine must not sleep during long runs (macOS: `caffeinate -i <cmd>`);
-keep `--workers`/dataloader workers at 2 on unified-memory Macs (more starves the GPU); progress bars use
-`\r`, so read logs with `tr '\r' '\n' < logs/x.log`.
-
-## Reproduce every number
+### Run an experiment
 
 | Step | Command | Output |
 |---|---|---|
@@ -114,7 +160,20 @@ keep `--workers`/dataloader workers at 2 on unified-memory Macs (more starves th
 
 All randomness is seeded (`seed: 0` in configs; degradation draws are seeded per (epoch, index)).
 
-## Data
+### Hardware and runtime notes
+
+The reported experiments ran on an Apple M5 Pro with 64GB unified memory using MPS and bf16.
+SigLIP2-giant processes about 5.4 images per second on that machine. Expect roughly 50–100 images per
+second on an A100 and 0.3–0.5 images per second on CPU. An 80GB GPU can use the complete datasets by
+setting `max_train: 0` and `n_eval_max: 0`.
+
+- Prevent the machine from sleeping during long runs. On macOS, use `caffeinate -i <command>`.
+- Keep dataloader workers at 2 on unified-memory Macs; higher counts can starve the GPU.
+- Progress bars use carriage returns. For readable logs, run `tr '\r' '\n' < logs/x.log`.
+
+## Datasets and leakage protection
+
+### Dataset overview
 
 | Source | Role | What we use | Why |
 |---|---|---|---|
@@ -132,12 +191,16 @@ alt-real image. `src/train.py` asserts on **every run** that zero training sampl
 feature is extracted; the pipeline smoke test verifies the assertion fires. Structural guards too: `dalle3`
 is refused as a training subset and `real_coco` is filtered to `test2017` only.
 
-### The COCO shortcut
+### COCO shortcut check
 All designated-validation reals are COCO photos. A model can learn "looks like COCO" instead of "is real".
 We therefore report AUC twice for every cell — fakes vs COCO reals **and** fakes vs ImageNet reals — and
 print the gap. A large gap = shortcut, not success.
 
-## Degradation pipeline ([src/degradation](src/degradation/))
+## Robustness and training
+
+### Degradation pipeline
+
+Implementation: [`src/degradation/`](src/degradation/)
 
 `distortion_prob = 1.0`: every training image gets 1–3 distinct transform families, each at an independently
 sampled severity, then horizontal flip p=0.5. The same module builds the evaluation conditions, seeded.
@@ -158,15 +221,15 @@ It was **not** made the default because (a) its pool has no resize/crop, which a
 families, and (b) its level values differ from the table above. Our eval grid therefore uses the table
 implementation; the official pipeline is available for a training-augmentation ablation.
 
-## Training
+### Training
 Cross-entropy (focal γ=2, α=0.5 as a config switch), AdamW wd 0.01, cosine LR with 1-epoch warmup,
 weighted sampler for class imbalance, mixed precision, checkpoint on **best robust validation AUC**
 (AUC on a randomly-degraded copy of the validation subset), not clean AUC.
 Frozen mode caches features to `data/features/*.npz` so head retraining takes seconds.
 
-## Limitations — and what we would do with more time
+## Limitations
 
-**Measured limitations of the shipped detector**
+### Shipped detector
 
 - **Out-of-distribution is the real frontier, not robustness.** All 14 degraded conditions sit above 0.995,
   but the external sets sit at 0.9917 (Community Forensics) and 0.9732 (RRDataset). The remaining errors are
@@ -183,7 +246,7 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
   (B-Free) shows end-to-end fine-tuning can beat frozen probes by large margins; we measured LoRA at
   ~0.06 img/s on this laptop (~22 days per run) and could not test it.
 
-**Limitations of the evaluation**
+### Evaluation
 
 - **The designated benchmark is saturated.** 0.9994 is reachable, leaving ~0.0006 of headroom — below the
   noise floor for 4,998 real images. It can no longer rank arms; every decision after the first week was
@@ -200,7 +263,7 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
   chains up to 5 of 36 transforms, so our conditions are easier than the competition's.
 - Content-hash exclusion catches re-encodes and renames, not edits or crops of validation images.
 
-**What we would do given more time, in order**
+## Next steps
 
 1. **Score RRDataset's re-digitization split.** It is the honest stress test for social-media deployment and
    nothing in our training resembles a photographed screen.
@@ -216,7 +279,10 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
 6. **LoRA on real GPU hardware**, judged externally — the only way to test whether "benchmark-limited" is
    really "frozen-probe-limited".
 
-## Deviations from the spec (all logged in the run summary too)
+## Deviations from the specification
+
+These are also recorded in the run summary.
+
 1. Training data subsampled (see table). The shipped mix differs from the spec's `[laion, dalle2]` WildFake slice — DALL-E 2 was dropped and COCO test2017 reals, MJv5 and six GAN families added; every change is measured in `docs/REPORT.md` §6–7.
 2. Per-condition grid on a 2,000-image seeded subset; clean AUC also on full set.
 3. Severity levels: the spec table gives 4/3/2/3/1/1 levels per family (not 5 each); we sample from the table.
@@ -224,7 +290,7 @@ Frozen mode caches features to `data/features/*.npz` so head retraining takes se
 5. Official NTIRE distortion code vendored but not default (rationale above).
 6. Frozen mode uses 2 cached augmentation draws of the training set (`feature_epochs: 2` in every config; the code default if unset is 3), then 30 head epochs.
 
-## Repo layout
+## Repository layout
 ```
 configs/        one YAML per arm (18). Shipped: frozen_siglip2_giant_ship. Baseline: frozen_siglip2_giant.
                 Others are the ablation arms referenced in docs/REPORT.md (2x2, gan, mjv5, sidonly, official, ...)
