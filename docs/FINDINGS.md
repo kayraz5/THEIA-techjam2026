@@ -34,7 +34,7 @@ Two factors on the same base mix: add low-res COCO test2017 **reals**, add WildF
 **Interaction effect - neither factor works alone.** COCO reals alone HURT externally (-0.0058).
 GAN alone wrecks the benchmark (max delta 0.0634, still resolution-confounded). Together they keep
 the benchmark and capture the external gain. This is Grommelt's "match the size distributions across
-classes" intervention: COCO test2017 is ~200px and the GAN fakes are ~256px, so adding those reals
+classes" intervention: COCO test2017 is ~200px and the GAN fakes are ~224px, so adding those reals
 puts low resolution on BOTH sides of the label.
 
 Per-generator, the OOD hole largely closes: Hourglass (pixel-diffusion) 0.7514 -> **0.9398**,

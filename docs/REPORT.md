@@ -13,7 +13,7 @@ while carrying enough detail to defend each number.
 
 We built a detector that takes an image and returns `p(AI-generated)` — a number between 0 and 1.
 
-**The headline result: we moved the score from 0.9309 to 0.9994 without changing the model, the
+**The headline result: we moved the score from 0.9309 to 0.9991 without changing the model, the
 architecture, or a single training hyperparameter. Every point came from fixing the training data.**
 
 | | Starting point (spec as written) | Shipped detector |
@@ -23,17 +23,19 @@ architecture, or a single training hyperparameter. Every point came from fixing 
 | Max degradation drop | 0.1118 | **0.0039** |
 | Accuracy @ 0.5 (with baseline 0.6545) | — | **0.9850** (balanced 0.9856) |
 | Shortcut gap (COCO reals vs ImageNet reals) | −0.0270 | **+0.0011** |
-| External generalization (unseen dataset, 3,759 images) | not measured | **0.9917** |
+| External #1 — Community Forensics-Eval (3,759 imgs, 10 unseen generators) | not measured | **0.9917** |
+| External #2 — RRDataset (3,000 imgs, balanced) | not measured | **0.9732** |
 
 The detector peaked at **0.9994** on the designated benchmark mid-project. We shipped a slightly lower
 one on purpose: the benchmark is saturated and cannot rank arms any more, so the final selection was
 made on the **external** set, where the shipped arm scores 0.9917 against 0.9715 for the
 benchmark-optimal one. That trade is §7.8, and it is the single most defensible decision in the project.
 
-Along the way we ran 25 tracked experiments, falsified two of our own hypotheses, caught two
-confounds (spurious shortcuts the model was exploiting instead of actually detecting fakes), and
-found that the single external weak point is **not** robustness to image damage but **generalization
-to generator architectures we never trained on**.
+Along the way we ran 25 tracked experiments, **falsified three of our own hypotheses — including our
+headline explanation** (§7.3) — caught two distinct classes of confound, and found that the external
+weak point is **not** robustness to image damage but **generalization to generator architectures we
+never trained on**. A tenth-round screening sweep (§7.9) then showed the training mix is at a local
+optimum: nine of ten further candidate sources were neutral-to-harmful.
 
 **The one-line story for the pitch:** *architecture was a solved problem; data curation was the entire
 game, and we can prove it because we measured both.*
@@ -148,7 +150,7 @@ using *resolution* as a cue would pass the shortcut check. We added a stronger t
 > AUC will collapse.
 
 This caught a confound the standard control missed (§7.4). We later found the published cousin of this
-method — **BIAS-ID (arXiv:2605.31153)** — and we cite it rather than claiming novelty (§10.3).
+method — **BIAS-ID (arXiv:2605.31153)** — and we cite it rather than claiming novelty (§9.3).
 
 ### 4.4 Full-set *and* subset reporting, plus deduplication
 The per-condition grid runs on a seeded 2,000-image subset (compute). Clean AUC is **also** computed on
@@ -170,14 +172,23 @@ The task is robustness; the selection metric should be too.
 
 ## 5. Data
 
-| Role | Source | Size | Notes |
+The **shipped** training mix (19,500 images; the counts are the run's own `[data]` block):
+
+| Role | Source | Count | Notes |
 |---|---|---|---|
-| Train — real | SID_Set (24 shards), WildFake LAION reals, WildFake ImageNet | 12k + 3k | |
-| Train — fake | SID_Set synthetic, WildFake MJv5 | 12k + 3k | label 2 "tampered" excluded |
+| Train — real | SID_Set | 3,969 | 8,000 sampled from 24 shards, split by label |
+| | WildFake LAION-5B reals | 3,000 | |
+| | WildFake **COCO test2017** reals | 3,000 | ~200 px; the resolution-debiasing source (§7.8). `val2017` is structurally excluded |
+| Train — fake | SID_Set synthetic | 4,031 | label 2 "tampered" excluded |
+| | WildFake MJv5 | 2,500 | |
+| | WildFake **6 GAN families** | 3,000 | DF-GAN 1,204 · GALIP 983 · styleGAN 491 · GigaGAN 161 · starGAN 81 · BigGAN 80 |
 | **Validation (never trained on)** | 4,998 COCO val2017 reals + 8,843 DALL-E 3 fakes | 13,841 | organisers' designated subset |
-| Alt-real control | 1,000 WildFake ImageNet reals | 1,000 | non-COCO real source |
+| **Alt-real control (never trained on)** | WildFake ImageNet reals | 1,000 | non-COCO real source, held out |
 | External eval | Community Forensics-Eval (CVPR 2025), 30 shards | 3,759 | 10 generators, never seen |
-| External eval #2 | RRDataset | in progress | second generalization bound |
+| External eval #2 | RRDataset (`original` split) | 3,000 | 1,500/1,500, never seen |
+
+Earlier arms referenced elsewhere in this report used different mixes — notably SID 12k for the
+benchmark-optimal arm (§7.8) and 25,500-/32,375-image supersets for the #20/#22 and #19 ablations.
 
 WildFake is 1.29 TB. We never downloaded it. `scripts/remote_zip.py` pulls **seeded slices via HTTP
 Range requests**, coalescing byte windows — extracting a 3,000-image sample from a 50 GB archive
@@ -185,15 +196,20 @@ without fetching the archive. This is the only reason generator-diversity experi
 
 **Median shortest side by source** (this table is the whole of §7.4):
 
-| Source | Median shortest side |
-|---|---|
-| WildFake GAN fakes | **256** (91% under 384 px) |
-| Validation COCO reals | **200** (100% under 384 px) |
-| Alt-real ImageNet | **200** |
-| COCO test2017 reals | **200** |
-| LAION reals | 713 |
-| Validation DALL-E 3 fakes | **1024** |
-| MJv5 fakes | **1024** |
+| Source | Median shortest side | Under 384 px |
+|---|---|---|
+| WildFake GAN fakes | **224** | **94%** |
+| ADM / DDIM / DDPM (pixel diffusion, §7.10) | **256** | **100%** |
+| Validation COCO reals | **200** | **100%** |
+| Alt-real ImageNet | **200** | 100% |
+| COCO test2017 reals (training) | **200** | 100% |
+| MJv4 (§7.3) | 512 | 19% |
+| LAION reals | 750 | 0% |
+| RRDataset reals (external) | 798 | 2% |
+| Validation DALL-E 3 fakes | **1024** | 0% |
+| MJv5 fakes | **1024** | 0% |
+
+(Medians over 250 seeded files per source, re-measured 2026-08-31.)
 
 ---
 
@@ -221,7 +237,7 @@ each was left alone for a stated reason rather than by omission.
 
 | Parameter | Left at | Why not changed |
 |---|---|---|
-| **Backbone** | `siglip2-giant-opt-patch16-384` (1.164 B) | Spec-mandated; reproduces the NTIRE 2026 5th-place recipe. 2026 literature ranks PE-Core and DINOv3 above it (§10.1) — but by the time we could test, the benchmark was at 0.9994 with 0.0006 headroom, **below the noise floor for 4,998 real images**. A better backbone is *unmeasurable here*. DINOv3 is additionally blocked on gated repo access. |
+| **Backbone** | `siglip2-giant-opt-patch16-384` (1.164 B) | Spec-mandated; reproduces the NTIRE 2026 5th-place recipe. 2026 literature ranks PE-Core and DINOv3 above it (§9.1) — but by the time we could test, the benchmark was at 0.9994 with 0.0006 headroom, **below the noise floor for 4,998 real images**. A better backbone is *unmeasurable here*. DINOv3 is additionally blocked on gated repo access. |
 | **Input resolution** | 384 px | Inherited from the checkpoint, not tuned. Giant is published *only* at 384, so testing 512 means simultaneously dropping to a 0.429 B backbone (`so400m-patch16-512`) — the resolution question cannot be asked in isolation. Config written (`frozen_siglip2_so400m_512.yaml`), deferred on measurability. |
 | **Pooling** | mean over patch tokens | Spec-mandated (no CLS, no attention pooling). **TAP (arXiv:2604.26772, 2026) disputes this ruling** and makes tunable attention pooling its central contribution. Blocked practically: attention pooling needs the full 576×1,536 token sequence per image (33 GB+) instead of one 1,536-dim vector — it breaks the feature cache that makes everything else cheap. **Parked as a documented decision, not an oversight.** |
 | **`weight_decay`** | 0.01 | 40-config sweep. 0.01 → 1.0 is a 100× change and moves clean AUC by 0.0001. Irrelevant. |
@@ -358,7 +374,7 @@ The one-class-downscale control (§4.3) gave the smoking gun:
 | % of reals flagged at t=0.5 (clean → downscaled) | — | 0.7% → **0.7%** | 23% → **87%** |
 
 Downscaling only the *real* photos made the GAN arm flag **87% of them as AI-generated**. The model had
-learned an **inverted resolution cue** — WildFake GAN fakes are 256 px, so "low resolution → fake" —
+learned an **inverted resolution cue** — WildFake GAN fakes are ~224 px, so "low resolution → fake" —
 which then fires on every low-resolution real photo. The ship candidate is completely unmoved (0.7% →
 0.7%).
 
@@ -426,7 +442,7 @@ Three things to read off this table:
    believed to be the **VAE decoder fingerprint**; generators without a VAE simply don't have one.
 3. **One generator generalized across architecture families.** Adding MJv5 — a latent-diffusion model —
    raised DFGAN (a GAN) from 0.6880 to 0.9513 and Hourglass from chance to 0.7320. We did not expect
-   that, and as far as we can establish from the literature, nobody has published this specific measurement (§10.2).
+   that, and as far as we can establish from the literature, nobody has published this specific measurement (§9.2).
 
 **This was the honest weakness.** §7.8 is how we closed most of it.
 
@@ -435,7 +451,7 @@ Three things to read off this table:
 §7.4 left a puzzle. Adding GAN training data gave the best external score we had ever seen — but the
 arm was unusable, because it had learned "low resolution → fake". Grommelt's paper says the fix is
 not to drop the data but to **match the size distributions across classes**. WildFake GAN fakes are
-~256 px; COCO test2017 reals are ~200 px. Adding those reals puts low resolution on *both* sides of the
+~224 px; COCO test2017 reals are ~200 px. Adding those reals puts low resolution on *both* sides of the
 label, so resolution stops being predictive.
 
 We ran it as a 2×2 on one shared feature extraction — two factors, four arms, everything else identical.
@@ -493,6 +509,94 @@ The external set can, and the competition's test data is WildFake, which contain
 > One comparability caveat: the 2×2's arm A trains on SID 8k while the
 > previously shipped head used SID 12k — that difference, not noise, is why A scores 0.9715 where the
 > earlier head scored 0.9644 on the same external set. Compare *within* the 2×2 table.
+
+### 7.9 Screening ten more sources — and finding the mix is already optimal
+
+Every source decision up to here was reactive: DALL-E 2 turned out to hurt, MJv5 helped, GAN data needed
+low-resolution reals. #19 asked it systematically — fix the ship mix as a base, add exactly one candidate,
+measure on the benchmark **and both external sets**. Ten candidates, one shared extraction of 32,375
+images, every comparison on bit-identical features.
+
+| Added source | Type | Designated | Max Δ | **CF** | **RRDataset** |
+|---|---|---|---|---|---|
+| *(ship base)* | — | **0.9991** | 0.0039 | **0.9917** | **0.9732** |
+| **VQDM** | VQ diffusion | 0.9985 | 0.0066 | **0.9934** ↑ | **0.9744** ↑ |
+| VQGAN | VQ + adversarial | 0.9988 | 0.0057 | 0.9923 ↑ | 0.9737 ↑ |
+| MAGE | masked generative | 0.9985 | 0.0048 | 0.9918 | 0.9672 ↓ |
+| MAE | masked autoencoder | 0.9983 | 0.0050 | 0.9912 ↓ | 0.9702 ↓ |
+| VQVAE | VQ autoencoder | 0.9989 | 0.0035 | 0.9898 ↓ | 0.9660 ↓ |
+| **Imagen** | commercial diffusion | 0.9988 | 0.0045 | 0.9885 ↓ | **0.9472** ↓↓ |
+| FFHQ * | real — faces | 0.9991 | 0.0031 | 0.9928 ↑ | 0.9654 ↓ |
+| CelebA-HQ * | real — faces | 0.9989 | 0.0037 | **0.9940** ↑ | 0.9706 ↓ |
+| AFHQ | real — animals | 0.9991 | 0.0042 | 0.9905 ↓ | 0.9679 ↓ |
+| Church | real — scenes | 0.9991 | 0.0033 | 0.9901 ↓ | 0.9655 ↓ |
+| **ALL TEN** | — | **0.9972** | 0.0082 | 0.9931 ↑ | **0.9608** ↓↓ |
+
+\* The FFHQ and CelebA-HQ CF gains are contaminated — see §7.3.
+
+Four things follow:
+
+1. **Only VQDM improves both external sets**, by ~0.002, while nearly doubling the max degradation delta
+   (it is another low-resolution fake source). Not worth it. **Nine of ten candidates are
+   neutral-to-harmful.** After four rounds of curation the mix is at a **local optimum** — further gains
+   must come from somewhere other than adding WildFake sources.
+2. **Imagen is the worst source tested.** Modern, commercial, high-tier — the vintage/tier theory's ideal
+   addition — and it costs 0.026 on RRDataset. This is the second falsification behind §7.3.
+3. **Stacking everything loses.** The all-ten mix is worse than the base on the benchmark *and* on
+   RRDataset, with the sweep's worst degradation delta. This is GAPL's *"Benefit then Conflict"* observed
+   directly: **per-source winners do not compose**, which is why we test mixes as mixes.
+4. **Every low-resolution fake source raises the degradation delta** (VQDM 0.0066, VQGAN 0.0057) while the
+   high-resolution real domains lower it (FFHQ 0.0031, Church 0.0033). Each low-res fake source spends
+   some of the headroom §7.8's fix bought.
+
+### 7.10 Two further experiments, and one decision each
+
+**Pixel-space diffusion (#22).** §7.7 identified Hourglass — a *pixel-space* diffusion model with no VAE,
+and therefore no VAE decoder fingerprint — as the worst external cell. We trained on 3,000 images from
+ADM, DDIM and DDPM, all VAE-free, on the ship base.
+
+| | Designated | Worst cell | Max delta | CF | RRDataset |
+|---|---|---|---|---|---|
+| ship base | **0.9990** | noise@0.1 0.9945 | **0.0044** | 0.9888 | 0.9608 |
+| + ADM/DDIM/DDPM | 0.9972 | noise@0.1 0.9888 | 0.0082 | **0.9903** | **0.9640** |
+
+**Hourglass 0.9316 → 0.9785.** The targeted cell moves a long way; the aggregate barely does, because
+Hourglass is 74 of 2,134 fakes. The cost is real: max delta doubles, and the one-class control shows
+resolution sensitivity rising from 7.4% to **12.0%** of downscaled reals flagged — all three sources are
+256 px. **Decision: not shipped by default.** Ship it only if pixel-space diffusion is in the target
+distribution, and pair it with a third low-resolution real source if so.
+
+Hourglass across every intervention: 0.5247 *(chance)* → 0.7320 → 0.9316 → 0.9785.
+
+**The official NTIRE distortion pipeline (#24).** The challenge's own 12-family `distort_images` code is
+vendored in this repo and was recorded as "wired up, never used". It was in fact **never runnable**: it
+imports `kornia`, which was missing from `requirements.txt`, and its vendored `spline()` crashes on
+numpy ≥ 2 (`np.diff` returns a length-1 array that numpy 2.x will not squeeze into a scalar slot). Both
+fixed; 200 draws now exercise all 12 families with zero failures.
+
+Run as the training augmentation, everything else identical to the ship arm — one variable, our 6-family
+table vs the official 12-family pool:
+
+| | ship (6-family table) | official (12-family) |
+|---|---|---|
+| Designated clean | 0.9991 | **0.9992** |
+| Worst cell | noise@0.1 0.9951 | **noise@0.1 0.9957** |
+| Max delta | 0.0039 | **0.0034** |
+| **CF external** | **0.9917** | 0.9871 |
+| **RRDataset** | **0.9732** | 0.9581 |
+
+In-distribution it is a wash, marginally favouring the official pool — every difference sits inside the
+noise floor. Out-of-distribution it is **measurably worse on both external sets** (−0.0046, −0.0151);
+RRDataset is 3,000 balanced images, so −0.015 there is not noise.
+
+**Decision: keep the 6-family table.** The eval grid deliberately uses the table either way — the official
+pool contains no resize and no crop, and if training and evaluation drew from the same distribution the
+robustness measurement would be circular. One caveat: NTIRE's top teams ran this pipeline **end-to-end**,
+where the backbone can adapt to it; we run a frozen probe, and a 12-family pool may need that extra
+capacity to pay off.
+
+**Note for comparability:** every shipped number in this report comes from the **table** pipeline, so they
+are not directly comparable to published NTIRE results that used the official augmentations.
 
 ---
 
@@ -595,7 +699,7 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
 | Tension | Detail |
 |---|---|
 | **SDXL** — *now resolved* | Bernabeu-Perez put SDXL in their *good* training-generator group; we measured it as negligible (+0.0007) and slightly negative on top of MJv5. When written, this was an unexplained contradiction. **#20 and #19 resolved it against the vintage theory, not in its favour**: MJv4 (2022) beat MJv5 (2023) externally, and Imagen — modern and commercial — was the worst source we tested. Tier and vintage do not predict source value in our setup; benchmark-distribution alignment does. See §7.3. |
-| **Number of augmentation families** | arXiv:2506.11490: *"using more than three augmentations during training does not improve model performance and may even reduce effectiveness."* But NTIRE 2026 practice runs the other way — 36 transformation types, with top teams using multi-level pipelines. **Unresolved in published work.** Our 6-family table sits between the two. |
+| **Number of augmentation families** — *we resolved this* | arXiv:2506.11490: *"using more than three augmentations during training does not improve model performance and may even reduce effectiveness."* NTIRE 2026 practice runs the other way — 36 transformation types. Unresolved in the published work, so **#24 tested it directly** (§7.10): going from our 6-family table to the official 12-family pool was a wash in-distribution and **worse on both external sets** (−0.0046 CF, −0.0151 RRDataset). **Our measurement lands on the EUSIPCO side.** Caveat: they fine-tune end-to-end, we run a frozen probe. |
 | **Frozen probes vs end-to-end** | B-Free: same backbone, linear probe 80.8 AUC vs end-to-end 99.0. Community Forensics Fig. 6a: *"freezing the backbone consistently leads to worse results."* SSAFE is the counterweight (frozen probe at SOTA), and the deciding variable appears to be **data curation quality** — which is exactly what we found. Still: **"we are benchmark-limited" may also be "frozen-probe limited", and we cannot distinguish those on this hardware.** |
 | **Backbone choice** | Three independent 2026 papers rank other encoders above SigLIP2 as frozen feature sources (SSAFE: PE-Core-G14-448 first; "Simplicity Prevails": DINOv3 best on GenImage, PE best on Chameleon; TAP: PE-G14 > DINOv3-7B > SigLIP2-SO400M). NTIRE 2026 ranks 1, 2 and 4 all used DINOv3. **We could not test this meaningfully** — see §6.2. |
 
@@ -612,7 +716,7 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
    *lowering* RRDataset. Use RRDataset as primary on that axis.
 3. **One external dataset is not a generalization bound.** Community Forensics-Eval alone cannot
    distinguish "our detector generalizes" from "that dataset is easier than advertised". A second set
-   (RRDataset, CC-BY-4.0) is downloaded and ready to score; Chameleon is gated (academic-only, email request).
+   RRDataset (CC BY 4.0) has since been scored — 0.9732, agreeing with Community Forensics on which arm is better — but it is only RRDataset's `original` split; its re-digitization axis is unmeasured. Chameleon is gated (academic-only, email request).
 4. **The validation fakes are a single generator** (DALL-E 3, 2023), and its 8,843 files are only
    **3,719 unique images**. We report deduplicated AUC alongside the raw number.
 5. **The alt-real control is structurally blind to resolution shortcuts** — both real sets are 200 px.
@@ -632,25 +736,38 @@ Stated carefully, because "novel" is a claim we've already had to retract once.
    the two generators remains open.
 10. **Frozen-probe ceiling.** We cannot rule out that end-to-end fine-tuning would beat us; LoRA is 22 days
    on this laptop.
-11. **Data access.** Three planned experiments (#19 per-generator screening, #20 MJv4-vs-MJv5, #22
-   pixel-space diffusion) are blocked by ModelScope throttling since 2026-08-29. Configs and methods are
-   committed and ready to run when access returns.
+11. **All 25 tracked experiments are now complete.** #19, #20, #22, #24 and #25 were previously blocked
+   on data access or dependencies and have since run; #1 (LoRA), #2 (ensemble), #13 (resolution) and #14
+   (attention pooling) were closed on measurement rather than executed, each for a stated reason (§6.2).
+   DINOv3 (gated Hugging Face repo) and Chameleon (academic-only request) remain externally gated.
 
 ---
 
 ## 11. What we would do next, in priority order
 
-1. **Finish the resolution fix for GAN data** (#23, running). Add ~200 px COCO test2017 reals so low
-   resolution appears on *both* sides of the label — Grommelt's intervention. The GAN arm's 0.9866
-   external score is the best we've seen; if the confound is removable, that's the biggest available win.
-2. **Close the pixel-space-diffusion gap** (#22) with DDPM/DDIM/ADM training data, applying the same
-   resolution lesson. Hourglass at 0.7320 is our worst external cell.
-3. **Second external eval** (#25) — RRDataset, then Chameleon if access is granted.
-4. **MJv4 vs MJv5** (#20) — isolates vintage from brand/resolution and is the falsifiable test of our
-   central data theory.
-5. **SSAFE's MMD-based source screening** — CPU-only for us, and a strictly better method than our
-   brute-force sweep for deciding which of WildFake's ~25 sources earn their place.
-6. **Backbone comparison on the external eval** (not the saturated benchmark) — PE-Core, DINOv3.
+All 25 tracked experiments are complete (§12.4). What follows is what we would do with more time, not
+what is outstanding.
+
+1. **Re-run the DALL-E 2 ablation with external evaluation.** §7.3 retracts the explanation for our
+   largest single result, and that result was only ever measured on the benchmark now known to reward
+   vintage-matching. This is the one number in the report we cannot fully defend, so it is first.
+2. **Score RRDataset's re-digitization split.** Our 0.9732 is on its `original` half. The round-robin
+   axis — social-media re-upload and screen/print recapture, where published detectors lose 88–90
+   points — is the honest stress test for deployment and nothing in our training resembles it.
+3. **Drive the residual resolution sensitivity down.** The shipped arm flags 5.1% of downscaled reals
+   vs 1.2% clean (§7.8). A third low-resolution real source should close it; pixel-space diffusion data
+   (§7.9, Hourglass 0.932 → 0.979) could then be added on top without the 12% cost it currently carries.
+4. **SSAFE's MMD-based source screening.** §7.9 showed brute-force source addition is exhausted — nine
+   of ten candidates were neutral-to-harmful. MMD clustering over the per-source frozen caches we now
+   have for 20+ sources is CPU-only and is the most likely route to a non-obvious win.
+5. **A MJv4 variant of the ship mix**, with the resolution control. #20's external margin exceeded the
+   one that justified the current ship arm; the confound there is resolution, which §7.8's method
+   already knows how to handle. One `--keep` ablation on existing features.
+6. **Backbone comparison judged on the external sets** — PE-Core and DINOv3, which three 2026 papers
+   rank above SigLIP2 as frozen feature sources. Unmeasurable on the saturated benchmark (§6.2), which
+   is why it was deferred; the external sets now give it something to move.
+7. **LoRA on real GPU hardware, judged externally.** The only way to test whether "benchmark-limited"
+   is really "frozen-probe-limited" (§9.4).
 
 Explicit non-goals: ensembles, fusion, and any architectural complexity. We have measured that this
 category of change buys ≤0.001 in our setup, and the brief forbids it until the single-backbone
