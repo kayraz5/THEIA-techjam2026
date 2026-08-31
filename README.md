@@ -20,7 +20,7 @@ reported without balanced accuracy and the majority-class baseline, because the 
 
 > **RESULTS: see [results/RESULTS.md](results/RESULTS.md)** (auto-filled from `results/<arm>/eval/summary.json`).
 
-### Ship candidate
+### Ship candidate 
 
 `configs/frozen_siglip2_giant_ship.yaml` -> `results/frozen_siglip2_giant_ship/head_best.pt` (16 KB).
 
