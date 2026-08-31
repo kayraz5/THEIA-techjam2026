@@ -2,3 +2,4 @@
 # record of the stack every reported number was produced with, and are deliberately untouched.
 fastapi>=0.115
 uvicorn>=0.30
+python-multipart>=0.0.9   # /api/upload receives multipart form data

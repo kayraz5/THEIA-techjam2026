@@ -30,25 +30,46 @@ compares against the value committed in `demo_preds.json` — `0.99720299243927`
 shown as a chip in the UI. `/api/health` reports the checkpoint path, its sha256, the feature
 dimension, device and dtype, and the `[param-check] … 1.164B` line prints on the console.
 
-**Does not prove the detector handles AI video.** It was trained on still-image generators, with
-zero video frames and zero temporal-VAE outputs. The measured result on this feed:
+**Does not prove the detector handles AI video, and the shipped feed is curated.** The feed scores
+**5/5 AI flagged, 0/5 reals firing** — but candidates the detector got *wrong* were removed from it
+on purpose. Read that 5/5 as a demonstration on material the detector handles, not as an accuracy
+estimate.
 
-| | flagged | |
+The unbiased number is over **all 22 candidates**, which `preflight.py --all` still scores:
+
+| | | |
 |---|---|---|
-| AI clips | **3 / 5** | both RunwayML and VideoPoet caught; **both Veo clips missed** (median p(AI) 0.11, 0.15) |
-| Real clips | **4 / 5 clean** | the stock kitchen clip peaks at median-5 **0.950**, above the 0.9446 trigger, and **has fired during live playback** |
+| AI clips flagged | **8 / 13** | missed: all three **Veo** clips (median 0.008–0.146), **CogVideoX-5B** (0.480), one VideoPoet (0.528) |
+| Reals at/near trigger | **2 / 9** | two Pexels **stock** clips, peak median-5 **0.950** and **0.974** |
 
-The Veo misses are the point, not a bug to hide. `docs/REPORT.md` §7.7 found that this detector's
-failures are *architectural, not stylistic* — generators whose decoder differs from anything in
-training simply do not carry the fingerprint it learned. A video model's temporal VAE is exactly
-that case, and the demo shows it happening live rather than asserting it in a table.
+Both failure modes are the ones the report predicts. `docs/REPORT.md` §7.7 found this detector's
+failures are *architectural, not stylistic* — a generator whose decoder differs from anything in
+training does not carry the fingerprint it learned, and a video model's temporal VAE is exactly
+that case. Only RunwayML and VideoPoet survive among AI families that also clear the 768 px
+equalisation floor, so **the shipped feed covers two architectures, not five**.
 
-The real-side split is just as sharp and equally predicted: the three handheld Wikimedia clips
-score 0.0001–0.003, while the two Pexels stock clips score 0.030 and **0.913**. Graded, denoised
-stock footage is the ERROR_ANALYSIS §1 false-positive profile, and it is in the feed on purpose —
-so the demo shows a false positive rather than hiding one. `preflight.py` reports a `headroom`
-column for exactly this: a real clip whose peak median-5 comes within 0.05 of the trigger is a
-live false alarm waiting for the right segment, even if it did not latch during the offline sweep.
+On the real side the split is just as sharp: handheld Wikimedia footage scores 0.0001–0.003, while
+graded, denoised Pexels stock runs 0.030–0.913 — the ERROR_ANALYSIS §1 false-positive profile.
+`preflight.py` reports a `headroom` column for this: a real clip whose peak median-5 comes within
+0.05 of the trigger is a live false alarm waiting for the right segment, even if it never latched
+during the offline sweep.
+
+## Try your own file
+
+The **Try your own** tab takes an image or a video (drag-and-drop, or click to pick).
+
+- An **image** is scored once, immediately, with all four heads shown.
+- A **video** is normalised through the *same* pipeline as the feed — equalised via the common
+  768 px intermediate, cropped to fill 720×1280, trimmed to 12 s — then added to the feed as a card
+  and scored live while it plays. Its ground-truth chip reads *unknown*, because it is.
+
+Normalising uploads the same way matters: a clip scored under different resolution or letterboxing
+conditions is not comparable to the shipped ones, and the two rules below are worth up to 0.28 and
+0.47 of score respectively.
+
+**Anything that fails validation is deleted, not kept** — unreadable file, unsupported codec, under
+1 s, over 300 MB, or letterbox bars that survive the crop. The rejection reason is shown in the UI.
+Uploads never leave the machine; they are written to the gitignored `project_demo/uploads/`.
 
 ## Files
 
@@ -58,6 +79,7 @@ live false alarm waiting for the right segment, even if it did not latch during 
 | `server.py` | FastAPI: static, byte-range video, `/api/health`, `/api/feed`, `/api/score`, `/api/head` |
 | `fetch_videos.py` | manifest → download → ffmpeg normalise → ffprobe/cropdetect validate |
 | `preflight.py` | score every clip offline, emit `preflight.csv` + `preflight_traces.json` |
+| `uploads/` | **gitignored.** Files from the *Try your own* tab; rejects are deleted immediately |
 | `videos.json` | the manifest: URLs, labels, generators, licences, and the pre-registered selection criteria |
 | `static/` | vanilla HTML/CSS/JS, no build step |
 
@@ -103,15 +125,25 @@ These were measured, not guessed. Changing them changes the answer.
 - **One frame in flight, ever.** A busy request is dropped, never queued: a queued frame is a stale
   answer displayed as a live one.
 
-## Clip selection
+## Clip selection — two stages, and the second one uses scores
 
-Clips are chosen by the **pre-registered content criteria** in `videos.json`, never by score —
-selecting clips that happen to score well is the error `docs/REPORT.md` §7.3 spends a section
-retracting. The one post-pre-flight change to the shipped set is disclosed in `videos.json`
-(`ship_set_changes`) and on screen, with both clips' scores.
+**Stage 1, pre-registered, content only.** The criteria in `videos.json` gated which clips entered
+the candidate pool: handheld with visible grain and high-texture content for reals; named generator,
+no watermark, recorded licence for AI. Committed before anything was scored — see git history.
 
-Run `python project_demo/preflight.py --all` to score all 18 candidates across five generator
-families, including the ones excluded from the feed.
+**Stage 2, score-based, added later at the author's instruction.** Candidates the detector got wrong
+were removed from the shipped feed: five AI clips it missed, two reals it false-alarmed on.
+
+This second stage *is* selection by score, which is the error `docs/REPORT.md` §7.3 spends a section
+retracting (a source looks better because it resembles the test set). It is done deliberately and
+recorded rather than hidden:
+
+- every removal is listed in `videos.json` under `removed_for_failing`, with the score that decided it
+- every removed clip stays in the manifest and is still scored by `preflight.py --all`
+- the unbiased 8/13 and 2/9 figures are stated in the UI's limits panel and above
+
+Run `python project_demo/preflight.py --all --fps 3` to reproduce the full table over all 22
+candidates across five generator families.
 
 ## Licensing
 

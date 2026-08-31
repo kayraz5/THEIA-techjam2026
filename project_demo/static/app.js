@@ -24,7 +24,7 @@ const TUNING = {
 const $ = s => document.querySelector(s);
 const feedEl = $('#feed'), pillEl = $('#pill');
 let CLIPS = [], HEALTH = null, activeCard = null, seq = 0, inflight = false;
-let rateScale = 1, rateResetAt = 0;
+let rateScale = 1, rateResetAt = 0, io = null;
 const fpsWin = [];
 
 // ---------------------------------------------------------------- state
@@ -225,7 +225,10 @@ function makeCard(clip) {
       <div class="ov-cap">${esc(clip.caption || '')}</div>
       <div class="ov-attr">${esc(clip.attribution || '')} · ${esc(clip.license || '')}${
         clip.generator ? ' · generated with ' + esc(clip.generator) : ''}</div>
-      <div class="ov-truth ${clip.label}">${clip.label === 'ai' ? 'ground truth: AI-generated' : 'ground truth: real camera'}</div>
+      <div class="ov-truth ${clip.label}">${
+        clip.label === 'ai' ? 'ground truth: AI-generated'
+      : clip.label === 'real' ? 'ground truth: real camera'
+      : 'ground truth: unknown (your upload)'}</div>
     </div>`;
   el._clip = clip;
   el._video = el.querySelector('video');
@@ -350,7 +353,7 @@ async function boot() {
   CLIPS.forEach(c => feedEl.appendChild(makeCard(c)));
   renderPreflight();
 
-  const io = new IntersectionObserver(es => {
+  io = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting && e.intersectionRatio >= 0.75) setActive(e.target);
   }, { root: feedEl, threshold: [0, .5, .75, .95] });
   [...feedEl.children].forEach(c => io.observe(c));
@@ -364,11 +367,117 @@ $('#startBtn').onclick = () => {
   $('#scrim').classList.add('hidden');
   setActive(feedEl.firstElementChild);
 };
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
-  ['pf', 'rt', 'lim'].forEach(n =>
-    $('#pane-' + n).classList.toggle('hidden', n !== t.dataset.tab));
-});
+const PANES = ['pf', 'rt', 'up', 'lim'];
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  PANES.forEach(n => $('#pane-' + n).classList.toggle('hidden', n !== name));
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab));
+
+// ---------------------------------------------------------------- upload
+
+const VERDICT = p => p >= TUNING.onThresh ? ['appears AI-generated', 'var(--bad)']
+                   : p >= 0.5             ? ['above 0.5, under the 0.9446 trigger', 'var(--warn)']
+                                          : ['reads as real', 'var(--good)'];
+
+function upRow(html, bad) {
+  const list = $('#upList');
+  list.querySelector('.up-empty')?.remove();
+  const el = document.createElement('div');
+  el.className = 'up-row' + (bad ? ' bad' : '');
+  el.innerHTML = html;
+  list.prepend(el);
+  return el;
+}
+
+async function sendUpload(file) {
+  const dz = $('#dropzone');
+  if (dz.classList.contains('busy')) return;
+  dz.classList.add('busy');
+  const pending = upRow(`<div class="up-thumb-ph">…</div>
+    <div><div class="up-name">${esc(file.name)}</div>
+    <div class="up-meta">uploading and normalising…</div></div><div></div>`);
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    pending.remove();
+
+    if (!d.ok) {
+      // The server deletes anything that fails validation; surface why.
+      upRow(`<div class="up-thumb-ph">✕</div>
+        <div><div class="up-name">${esc(file.name)}</div>
+        <div class="up-meta" style="color:var(--bad)">rejected — ${esc(d.error)}</div>
+        <div class="up-meta">${esc(d.detail || 'the file was deleted, not kept')}</div></div>
+        <div></div>`, true);
+      return;
+    }
+
+    if (d.kind === 'image') {
+      const [verdict, col] = VERDICT(d.p);
+      const heads = Object.entries(d.heads).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(' · ');
+      upRow(`<img src="${d.src}" alt="">
+        <div><div class="up-name">${esc(file.name)}</div>
+        <div class="up-meta">image · scored once · ${esc(heads)}</div></div>
+        <div><div class="up-score" style="color:${col}">${d.p.toFixed(3)}</div>
+        <div class="up-verdict">${verdict}</div></div>`);
+      return;
+    }
+
+    // video: becomes a real feed card, scored live like every other clip
+    const clip = { id: d.id, label: 'unknown', title: file.name, caption: 'your upload',
+                   generator: null, attribution: 'uploaded locally', license: 'not redistributed',
+                   src: d.src, preflight: null, uploaded: true };
+    if (!io) { upRow(`<div class="up-thumb-ph">…</div><div><div class="up-name">${esc(file.name)}</div>
+      <div class="up-meta">the feed is still loading — try again in a moment</div></div><div></div>`, true);
+      return; }
+    CLIPS.push(clip);
+    const card = makeCard(clip);
+    feedEl.appendChild(card);
+    io.observe(card);
+
+    const row = upRow(`<video src="${d.src}" muted playsinline></video>
+      <div><div class="up-name">${esc(file.name)}</div>
+      <div class="up-meta">video · ${d.duration}s · ${esc(d.scale_note)}</div>
+      <div class="up-meta">added to the feed — scored live while it plays</div></div>
+      <button class="up-go">play it</button>`);
+    row.querySelector('.up-go').onclick = () => {
+      card.scrollIntoView({ behavior: 'smooth' });
+      feedEl.scrollTop = [...feedEl.children].indexOf(card) * feedEl.clientHeight;
+    };
+    row.querySelector('.up-go').click();
+  } catch (e) {
+    pending.remove();
+    upRow(`<div class="up-thumb-ph">✕</div>
+      <div><div class="up-name">${esc(file.name)}</div>
+      <div class="up-meta" style="color:var(--bad)">upload failed — ${esc(e.message)}</div></div>
+      <div></div>`, true);
+  } finally {
+    dz.classList.remove('busy');
+  }
+}
+
+(() => {
+  const dz = $('#dropzone'), input = $('#fileInput');
+  dz.onclick = () => input.click();
+  dz.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
+  input.onchange = () => { for (const f of input.files) sendUpload(f); input.value = ''; };
+  for (const ev of ['dragenter', 'dragover']) {
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); });
+  }
+  for (const ev of ['dragleave', 'drop']) {
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); });
+  }
+  dz.addEventListener('drop', e => { for (const f of e.dataTransfer.files) sendUpload(f); });
+  // dropping anywhere on the page works too, but must not hijack a normal navigation
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (dz.contains(e.target)) return;
+    e.preventDefault();
+    if (e.dataTransfer.files.length) { showTab('up'); for (const f of e.dataTransfer.files) sendUpload(f); }
+  });
+})();
 $('#labelBtn').onclick = () => document.body.classList.toggle('show-truth');
 document.addEventListener('keydown', e => {
   if (e.key === 'l' || e.key === 'L') document.body.classList.toggle('show-truth');

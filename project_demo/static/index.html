@@ -92,6 +92,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="pf">Pre-flight</button>
       <button class="tab" data-tab="rt">Runtime</button>
+      <button class="tab" data-tab="up">Try your own</button>
       <button class="tab" data-tab="lim">What it can &amp; can't do</button>
       <span class="tabs-right">
         <label for="headSel">head</label>
@@ -127,17 +128,52 @@
       </div>
     </section>
 
+    <section class="card pane hidden" id="pane-up">
+      <div class="up-grid">
+        <div>
+          <div class="dropzone" id="dropzone" tabindex="0" role="button"
+               aria-label="Upload an image or video to score">
+            <input type="file" id="fileInput" hidden
+                   accept="image/jpeg,image/png,image/webp,image/bmp,video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv,.avi,.gif">
+            <div class="dz-icon">↑</div>
+            <div class="dz-title">Drop an image or video here</div>
+            <div class="dz-sub">or click to choose · jpg png webp bmp · mp4 mov webm mkv avi gif</div>
+          </div>
+          <p class="hint">Uploads run through the <b>same</b> pipeline as the feed: video is
+            equalised through a common 768&nbsp;px intermediate then cropped to fill 720×1280 and
+            trimmed to 12&nbsp;s, so an uploaded clip is comparable to a shipped one rather than
+            scored under different conditions. A video is added to the feed and scored live as you
+            watch it; an image is scored once, immediately.</p>
+          <p class="hint"><b>Anything that fails validation is deleted, not kept</b> — unreadable
+            file, unsupported codec, under 1&nbsp;s, over 300&nbsp;MB, or letterbox bars that
+            survive the crop (those would make the score incomparable). The reason is shown below.</p>
+          <p class="hint">Nothing you upload leaves this machine. Files are written to the
+            gitignored <code>project_demo/uploads/</code>.</p>
+        </div>
+        <div class="up-results">
+          <div class="kv-h">Results</div>
+          <div id="upList" class="up-list"><div class="up-empty">nothing uploaded yet</div></div>
+        </div>
+      </div>
+    </section>
+
     <section class="card pane hidden" id="pane-lim">
       <div class="lim-cols">
         <div>
-          <h3>Measured on this feed</h3>
+          <h3 class="h3-warn">This feed is curated — read 5/5 with that in mind</h3>
           <ul class="tight">
-            <li><b>3 of 5</b> AI clips flagged. Both RunwayML and the VideoPoet clip caught;
-              <b>both Veo clips missed</b> (median 0.13 / 0.15, peak median-5 0.61 / 0.67).</li>
-            <li><b>4 of 5</b> reals clean. The stock kitchen clip peaks at median-5 <b>0.950</b> —
-              <em>above</em> the 0.9446 trigger — and <b>has fired during live playback</b>. Graded,
-              denoised stock: the ERROR_ANALYSIS §1 false-positive profile, in the feed on purpose.
-              The three handheld clips beside it score 0.0001–0.003.</li>
+            <li>The shipped feed scores <b>5 of 5</b> AI clips flagged and <b>0 of 5</b> reals
+              firing. <b>That is not an unbiased accuracy estimate.</b> Candidates the detector got
+              wrong were <em>removed</em> from this feed at the author's instruction.</li>
+            <li>Over <b>all 22 candidates</b>, unfiltered: <b>8 of 13</b> AI clips flagged and
+              <b>2 of 9</b> reals at or over the trigger. Missed: all three <b>Veo</b> clips
+              (median 0.008–0.146), <b>CogVideoX-5B</b> (0.480), one VideoPoet (0.528). False
+              alarms: two Pexels <b>stock</b> clips (peak median-5 0.950 and 0.974).</li>
+            <li>Only RunwayML and VideoPoet survive among families that also clear the 768&nbsp;px
+              equalisation floor, so <b>the feed covers two architectures, not five</b>.</li>
+            <li>Every removal is listed with its score in <code>videos.json</code> under
+              <code>removed_for_failing</code>, and every removed clip is still scored by
+              <code>preflight.py --all</code>. Nothing was deleted from the record.</li>
           </ul>
           <h3>Validated</h3>
           <ul class="tight">

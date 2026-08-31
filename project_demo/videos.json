@@ -1,13 +1,24 @@
 {
   "schema": 1,
   "notes": [
-    "Media is NOT redistributed. This file records only where to fetch each clip; fetch_videos.py",
-    "pulls from the original hosts at run time and writes into the gitignored videos/ directory.",
+    "Media is NOT redistributed. This file records only where to fetch each clip;",
+    "fetch_videos.py pulls from the original hosts at run time into the gitignored videos/.",
     "See docs/DATA_LICENSES.md for the licence audit.",
     "",
-    "Clip selection is PRE-REGISTERED by content, never by detector score. The criteria below were",
-    "committed before any clip was scored (see git history for this file). Selecting clips by score",
-    "would repeat the error docs/REPORT.md 7.3 retracts: a source improves a benchmark by resembling it."
+    "SELECTION IS TWO-STAGE, AND THE SECOND STAGE USES THE DETECTOR'S OWN SCORES.",
+    "Stage 1 (pre-registered, content only): the criteria below gated which clips entered the",
+    "candidate pool at all. They were committed before any clip was scored; see git history.",
+    "Stage 2 (score-based, added later at the author's instruction): candidates the detector got",
+    "wrong were removed from the shipped feed. Every removal is listed in `removed_for_failing`",
+    "with the score that decided it, and every removed clip remains in this manifest and is still",
+    "scored by `preflight.py --all`.",
+    "",
+    "Read the shipped feed's 5/5 result accordingly: it is a demonstration of the detector on",
+    "material it handles, NOT an unbiased estimate of accuracy on AI video. docs/REPORT.md 7.3",
+    "retracts an earlier finding for exactly this class of error (a source looks better because it",
+    "resembles the test set). The unbiased number is in `preflight.py --all` over all 22 candidates:",
+    "8 of 13 AI clips flagged and 2 of 9 reals at or near the trigger, i.e. the detector misses whole generator",
+    "families (all three Veo clips, CogVideoX-5B) and false-alarms on graded stock footage."
   ],
   "real_selection_criteria": {
     "require": [
@@ -26,7 +37,8 @@
       "any UI, motion graphics, lower-thirds, captions or logos in frame (ERROR_ANALYSIS FP pattern #1: a real photo of something itself digitally made)",
       "bokeh-heavy shallow-depth-of-field talking heads",
       "night footage (computational night mode is not a plain camera image)"
-    ]
+    ],
+    "stage_2_score_filter": "Reals whose peak median-5 came within 0.05 of the 0.9446 trigger were removed as live false-alarm risks, even when they did not latch during the offline sweep."
   },
   "ai_selection_criteria": {
     "require": [
@@ -35,7 +47,8 @@
       "licence permits use and is recorded per clip"
     ],
     "note": "One deliberately mundane, cluttered, handheld-looking AI clip is included. ERROR_ANALYSIS 2 says the detector's false negatives are photorealistic renders of mundane cluttered scenes; an all-cinematic AI set would be unwittingly easy mode.",
-    "generator_diversity": "The shipped AI set spans three architecture families (Veo, RunwayML, VideoPoet) rather than two. Only clips whose native height is >= the 768 px equalisation intermediate are eligible, which excludes CogVideoX-5B (480 px) and Stable Diffusion video (576 px) on confound grounds, not on score."
+    "generator_diversity": "The shipped AI set spans three architecture families (Veo, RunwayML, VideoPoet) rather than two. Only clips whose native height is >= the 768 px equalisation intermediate are eligible, which excludes CogVideoX-5B (480 px) and Stable Diffusion video (576 px) on confound grounds, not on score.",
+    "stage_2_score_filter": "Clips whose median-5 never crossed the 0.9446 trigger were removed. Only RunwayML and VideoPoet survive among AI families that also clear the 768 px equalisation floor, so the shipped feed covers two architectures, not five."
   },
   "sources": {
     "deepaction_v1": {
@@ -92,34 +105,14 @@
       }
     },
     {
-      "id": "ai_veo_cooking",
-      "label": "ai",
-      "ship": true,
-      "title": "Cooking a meal in the kitchen",
-      "caption": "dinner prep, nothing fancy",
-      "generator": "Veo (pre-release)",
-      "source": "deepaction_v1",
-      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Veo/3/a.mp4",
-      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
-      "license": "CC BY 4.0",
-      "attribution": "Farid Lab, DeepAction v1",
-      "prompt": "A person cooking a meal in the kitchen.",
-      "note": "the deliberate hard case: mundane and cluttered, the ERROR_ANALYSIS 2 false-negative pattern",
-      "watermark_crop": null,
-      "trim": {
-        "start": 0.0,
-        "duration": 6.4
-      }
-    },
-    {
-      "id": "ai_veo_park",
+      "id": "ai_runway_park",
       "label": "ai",
       "ship": true,
       "title": "Walking through a park",
       "caption": "afternoon loop round the park",
-      "generator": "Veo (pre-release)",
+      "generator": "RunwayML",
       "source": "deepaction_v1",
-      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Veo/0/a.mp4",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/RunwayML/0/a.mp4",
       "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
       "license": "CC BY 4.0",
       "attribution": "Farid Lab, DeepAction v1",
@@ -127,7 +120,26 @@
       "watermark_crop": null,
       "trim": {
         "start": 0.0,
-        "duration": 6.4
+        "duration": 10.0
+      }
+    },
+    {
+      "id": "ai_videopoet_dance",
+      "label": "ai",
+      "ship": true,
+      "title": "Dancing in the living room",
+      "caption": "saturday",
+      "generator": "VideoPoet",
+      "source": "deepaction_v1",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/VideoPoet/1/a.mp4",
+      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
+      "license": "CC BY 4.0",
+      "attribution": "Farid Lab, DeepAction v1",
+      "prompt": "A person dancing in their living room.",
+      "watermark_crop": null,
+      "trim": {
+        "start": 0.0,
+        "duration": 10.0
       }
     },
     {
@@ -208,18 +220,17 @@
       }
     },
     {
-      "id": "real_stock_kitchen",
+      "id": "real_stock_dance",
       "label": "real",
       "ship": true,
-      "title": "Cooking a meal in the kitchen",
-      "caption": "dinner prep, nothing fancy",
+      "title": "Dancing in the living room",
+      "caption": "saturday",
       "generator": null,
       "source": "deepaction_v1",
-      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Pexels/3/a.mp4",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Pexels/1/a.mp4",
       "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
       "license": "Pexels License",
       "attribution": "Pexels, via Farid Lab DeepAction v1",
-      "note": "STOCK: deliberately hard, content-matched to ai_veo_cooking.",
       "watermark_crop": null,
       "trim": {
         "start": 0.0,
@@ -285,6 +296,25 @@
       }
     },
     {
+      "id": "ai_runway_yoga",
+      "label": "ai",
+      "ship": false,
+      "title": "Yoga in the backyard",
+      "caption": "morning stretch",
+      "generator": "RunwayML",
+      "source": "deepaction_v1",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/RunwayML/2/a.mp4",
+      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
+      "license": "CC BY 4.0",
+      "attribution": "Farid Lab, DeepAction v1",
+      "prompt": "A person doing yoga in their backyard.",
+      "watermark_crop": null,
+      "trim": {
+        "start": 0.0,
+        "duration": 10.0
+      }
+    },
+    {
       "id": "ai_sd_bicycle",
       "label": "ai",
       "ship": false,
@@ -304,6 +334,45 @@
       }
     },
     {
+      "id": "ai_veo_cooking",
+      "label": "ai",
+      "ship": false,
+      "title": "Cooking a meal in the kitchen",
+      "caption": "dinner prep, nothing fancy",
+      "generator": "Veo (pre-release)",
+      "source": "deepaction_v1",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Veo/3/a.mp4",
+      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
+      "license": "CC BY 4.0",
+      "attribution": "Farid Lab, DeepAction v1",
+      "prompt": "A person cooking a meal in the kitchen.",
+      "note": "the deliberate hard case: mundane and cluttered, the ERROR_ANALYSIS 2 false-negative pattern",
+      "watermark_crop": null,
+      "trim": {
+        "start": 0.0,
+        "duration": 6.4
+      }
+    },
+    {
+      "id": "ai_veo_park",
+      "label": "ai",
+      "ship": false,
+      "title": "Walking through a park",
+      "caption": "afternoon loop round the park",
+      "generator": "Veo (pre-release)",
+      "source": "deepaction_v1",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Veo/0/a.mp4",
+      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
+      "license": "CC BY 4.0",
+      "attribution": "Farid Lab, DeepAction v1",
+      "prompt": "A person walking through a park.",
+      "watermark_crop": null,
+      "trim": {
+        "start": 0.0,
+        "duration": 6.4
+      }
+    },
+    {
       "id": "ai_veo_yoga",
       "label": "ai",
       "ship": false,
@@ -320,6 +389,25 @@
       "trim": {
         "start": 0.0,
         "duration": 6.4
+      }
+    },
+    {
+      "id": "ai_videopoet_cooking",
+      "label": "ai",
+      "ship": false,
+      "title": "Cooking a meal in the kitchen",
+      "caption": "dinner prep, nothing fancy",
+      "generator": "VideoPoet",
+      "source": "deepaction_v1",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/VideoPoet/3/a.mp4",
+      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
+      "license": "CC BY 4.0",
+      "attribution": "Farid Lab, DeepAction v1",
+      "prompt": "A person cooking a meal in the kitchen.",
+      "watermark_crop": null,
+      "trim": {
+        "start": 0.0,
+        "duration": 10.0
       }
     },
     {
@@ -359,24 +447,6 @@
       }
     },
     {
-      "id": "real_stock_dance",
-      "label": "real",
-      "ship": false,
-      "title": "Dancing in the living room",
-      "caption": "saturday",
-      "generator": null,
-      "source": "deepaction_v1",
-      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Pexels/1/a.mp4",
-      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
-      "license": "Pexels License",
-      "attribution": "Pexels, via Farid Lab DeepAction v1",
-      "watermark_crop": null,
-      "trim": {
-        "start": 0.0,
-        "duration": 10.0
-      }
-    },
-    {
       "id": "real_stock_dog",
       "label": "real",
       "ship": false,
@@ -393,14 +463,107 @@
         "start": 0.0,
         "duration": 10.0
       }
+    },
+    {
+      "id": "real_stock_kitchen",
+      "label": "real",
+      "ship": false,
+      "title": "Cooking a meal in the kitchen",
+      "caption": "dinner prep, nothing fancy",
+      "generator": null,
+      "source": "deepaction_v1",
+      "url": "https://huggingface.co/datasets/faridlab/deepaction_v1/resolve/main/Pexels/3/a.mp4",
+      "page_url": "https://huggingface.co/datasets/faridlab/deepaction_v1",
+      "license": "Pexels License",
+      "attribution": "Pexels, via Farid Lab DeepAction v1",
+      "note": "STOCK: deliberately hard, content-matched to ai_veo_cooking.",
+      "watermark_crop": null,
+      "trim": {
+        "start": 0.0,
+        "duration": 10.0
+      }
     }
   ],
-  "ship_set_changes": [
+  "removed_for_failing": [
     {
-      "moved_out": "ai_veo_yoga",
-      "moved_in": "ai_videopoet_jog",
-      "reason": "generator diversity: 3 architecture families instead of 2",
-      "disclosure": "This swap also raises the number of AI clips the badge flags from 2/5 to 3/5, so it must be read as score-affecting even though diversity was the stated reason. Both clips stay in the manifest and both are scored by preflight.py. ai_veo_yoga median p(AI)=0.0090 (missed); ai_videopoet_jog median=0.9920. Nothing was dropped from the measured record."
+      "id": "ai_veo_cooking",
+      "label": "ai",
+      "generator": "Veo (pre-release)",
+      "median_p_ai": 0.1313,
+      "peak_median5": 0.6129,
+      "pill_on_fraction": 0.0,
+      "why": "missed: median-5 never reached the 0.9446 trigger"
+    },
+    {
+      "id": "ai_veo_park",
+      "label": "ai",
+      "generator": "Veo (pre-release)",
+      "median_p_ai": 0.1455,
+      "peak_median5": 0.6686,
+      "pill_on_fraction": 0.0,
+      "why": "missed: median-5 never reached the 0.9446 trigger"
+    },
+    {
+      "id": "ai_veo_yoga",
+      "label": "ai",
+      "generator": "Veo (pre-release)",
+      "median_p_ai": 0.0082,
+      "peak_median5": 0.0143,
+      "pill_on_fraction": 0.0,
+      "why": "missed: median-5 never reached the 0.9446 trigger"
+    },
+    {
+      "id": "ai_cogvideox_dance",
+      "label": "ai",
+      "generator": "CogVideoX-5B",
+      "median_p_ai": 0.4798,
+      "peak_median5": 0.7266,
+      "pill_on_fraction": 0.0,
+      "why": "missed: median-5 never reached the 0.9446 trigger"
+    },
+    {
+      "id": "ai_videopoet_cooking",
+      "label": "ai",
+      "generator": "VideoPoet",
+      "median_p_ai": 0.5279,
+      "peak_median5": 0.8524,
+      "pill_on_fraction": 0.0,
+      "why": "missed: median-5 never reached the 0.9446 trigger"
+    },
+    {
+      "id": "real_stock_kitchen",
+      "label": "real",
+      "generator": null,
+      "median_p_ai": 0.9129,
+      "peak_median5": 0.9496,
+      "pill_on_fraction": 0.0,
+      "why": "false alarm: peak median-5 at or near the trigger"
+    },
+    {
+      "id": "real_stock_dog",
+      "label": "real",
+      "generator": null,
+      "median_p_ai": 0.7381,
+      "peak_median5": 0.9739,
+      "pill_on_fraction": 0.385,
+      "why": "false alarm: peak median-5 at or near the trigger"
     }
-  ]
+  ],
+  "unbiased_all_candidates": {
+    "n_candidates": 22,
+    "ai_flagged": "8/13",
+    "reals_at_or_near_trigger": "2/9",
+    "ai_missed": [
+      "ai_veo_cooking",
+      "ai_veo_park",
+      "ai_cogvideox_dance",
+      "ai_veo_yoga",
+      "ai_videopoet_cooking"
+    ],
+    "reals_firing": [
+      "real_stock_kitchen",
+      "real_stock_dog"
+    ],
+    "note": "Regenerate with: python project_demo/preflight.py --all --fps 3"
+  }
 }

@@ -97,15 +97,21 @@ def cropdetect(path: str) -> str | None:
     return None
 
 
-def normalise(clip: dict, raw: str) -> str:
-    out = os.path.join(OUT_DIR, clip["id"] + ".mp4")
-    trim = clip.get("trim") or {}
+def normalise_file(src: str, out: str, trim: dict | None = None,
+                   watermark_crop: str | None = None, quiet: bool = False) -> str:
+    """The one and only normalisation pipeline. Feed clips and uploads both go through this.
+
+    Returns the output path, or "" on failure. See the module docstring for why the two
+    filter rules (crop-to-fill, common equalisation height) are not negotiable.
+    """
+    trim = trim or {}
     filters = []
-    if clip.get("watermark_crop"):          # e.g. "crop=iw:ih-80:0:0" to remove a generator mark
-        filters.append(clip["watermark_crop"])
-    bars = cropdetect(raw)
+    if watermark_crop:                      # e.g. "crop=iw:ih-80:0:0" to remove a generator mark
+        filters.append(watermark_crop)
+    bars = cropdetect(src)
     if bars:
-        print(f"  [bars] {clip['id']}: source is letterboxed, cropping {bars}")
+        if not quiet:
+            print(f"  [bars] source is letterboxed, cropping {bars}")
         filters.append(bars)
     filters += [
         # Common resolution history for every clip, real and AI alike. See EQUALIZE_H.
@@ -117,7 +123,7 @@ def normalise(clip: dict, raw: str) -> str:
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
     if trim.get("start"):
         cmd += ["-ss", str(trim["start"])]              # before -i for a fast seek
-    cmd += ["-i", raw]
+    cmd += ["-i", src]
     if trim.get("duration"):
         cmd += ["-t", str(trim["duration"])]
     cmd += ["-an",                                        # strip audio (and any music licence question)
@@ -129,9 +135,16 @@ def normalise(clip: dict, raw: str) -> str:
             out]
     r = sh(cmd)
     if r.returncode != 0:
-        print(f"  [FAIL] {clip['id']}: ffmpeg\n{r.stderr[-600:]}")
+        if not quiet:
+            print(f"  [FAIL] ffmpeg\n{r.stderr[-600:]}")
         return ""
     return out
+
+
+def normalise(clip: dict, raw: str) -> str:
+    """Normalise one manifest clip into videos/<id>.mp4."""
+    return normalise_file(raw, os.path.join(OUT_DIR, clip["id"] + ".mp4"),
+                          clip.get("trim"), clip.get("watermark_crop"))
 
 
 def verify(clips: list) -> bool:

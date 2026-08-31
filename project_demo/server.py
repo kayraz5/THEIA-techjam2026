@@ -12,7 +12,7 @@ already measured each clip does, including the clips the detector gets wrong.
 from __future__ import annotations
 import argparse, csv, json, os, sys, threading, time
 
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -21,13 +21,19 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, REPO)
 
 from project_demo.detector import Detector, DEFAULT_CONFIG  # noqa: E402
+from project_demo.fetch_videos import normalise_file, probe, cropdetect  # noqa: E402
 
 VIDEO_DIR = os.path.join(HERE, "videos")
+UPLOAD_DIR = os.path.join(HERE, "uploads")
 STATIC_DIR = os.path.join(HERE, "static")
 MANIFEST = os.path.join(HERE, "videos.json")
 PREFLIGHT = os.path.join(HERE, "preflight.csv")
 
-MAX_FRAME_BYTES = 8 << 20   # a 720x1280 JPEG q95 is ~250 KB; 8 MB is a generous ceiling
+MAX_FRAME_BYTES = 8 << 20    # a 720x1280 JPEG q95 is ~250 KB; 8 MB is a generous ceiling
+MAX_UPLOAD_BYTES = 300 << 20 # 300 MB
+UPLOAD_TRIM_S = 12.0         # uploads are trimmed to this so one clip cannot hog the demo
+IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+VID_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".gif"}
 
 app = FastAPI(title="AI-content detection — live feed demo", docs_url=None, redoc_url=None)
 
@@ -143,6 +149,117 @@ def score(body: bytes = Body(..., media_type="image/jpeg"),
         GATE.release()
 
 
+# ---- upload ---------------------------------------------------------------
+
+def _reject(path: str, reason: str, detail: str = ""):
+    """Delete the artefact and say why. Nothing that fails validation is kept on disk."""
+    for f in filter(None, [path]):
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+        except OSError:
+            pass
+    return JSONResponse({"ok": False, "error": reason, "detail": detail}, status_code=400)
+
+
+@app.post("/api/upload")
+def upload(file: UploadFile = File(...)):
+    """Score an uploaded image, or normalise an uploaded video into a playable feed card.
+
+    Uploads traverse the SAME ffmpeg pipeline as the shipped clips (equalisation through a
+    common 768 px intermediate, then crop-to-fill to 720x1280) so an uploaded clip is
+    comparable to the ones in the feed rather than scored under different conditions.
+
+    Anything that fails validation is deleted, not kept.
+    """
+    if DET is None:
+        return JSONResponse({"ok": False, "error": "not ready"}, status_code=503)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in IMG_EXT and ext not in VID_EXT:
+        return JSONResponse({"ok": False, "error": "unsupported file type",
+                             "detail": f"{ext or 'no extension'} — accepted: "
+                                       f"{', '.join(sorted(IMG_EXT | VID_EXT))}"}, status_code=400)
+
+    uid = f"up_{int(time.time() * 1000):x}"
+    raw = os.path.join(UPLOAD_DIR, uid + "_raw" + ext)
+    n = 0
+    with open(raw, "wb") as out:
+        while chunk := file.file.read(1 << 20):
+            n += len(chunk)
+            if n > MAX_UPLOAD_BYTES:
+                return _reject(raw, "file too large",
+                               f"limit {MAX_UPLOAD_BYTES >> 20} MB")
+            out.write(chunk)
+    if n == 0:
+        return _reject(raw, "empty file")
+
+    # ---- image: score it directly, same path as predict.py ----------------
+    if ext in IMG_EXT:
+        try:
+            with open(raw, "rb") as f:
+                heads = DET.score_jpeg_bytes(f.read())
+        except Exception as e:
+            return _reject(raw, "could not decode image", f"{type(e).__name__}: {e}")
+        os.replace(raw, os.path.join(UPLOAD_DIR, uid + ext))
+        STATS["scored"] += 1
+        return {"ok": True, "kind": "image", "id": uid,
+                "src": f"/uploads/{uid}{ext}", "filename": file.filename,
+                "heads": heads, "p": heads[DET.active], "active_head": DET.active}
+
+    # ---- video: validate, then normalise through the shipped pipeline -----
+    info = probe(raw)
+    if not info.get("w"):
+        return _reject(raw, "not a readable video", "ffprobe found no video stream")
+    if info.get("duration", 0) < 1.0:
+        return _reject(raw, "video too short", f"{info.get('duration', 0):.1f}s — need >= 1s")
+
+    dst = os.path.join(UPLOAD_DIR, uid + ".mp4")
+    trim = {"start": 0.0, "duration": min(UPLOAD_TRIM_S, info["duration"])}
+    if not normalise_file(raw, dst, trim=trim, quiet=True):
+        return _reject(raw, "could not transcode video",
+                       "ffmpeg failed — the codec may be unsupported")
+
+    out = probe(dst)
+    problems = []
+    if (out.get("w"), out.get("h")) != (720, 1280):
+        problems.append(f"unexpected output size {out.get('w')}x{out.get('h')}")
+    if out.get("size", 0) < 20_000:
+        problems.append("transcoded output is suspiciously small")
+    if cropdetect(dst):
+        problems.append("letterbox bars survived the crop — scores would not be comparable")
+    if problems:
+        for f in (raw, dst):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        return JSONResponse({"ok": False, "error": "failed validation",
+                             "detail": "; ".join(problems)}, status_code=400)
+
+    try:
+        os.remove(raw)                      # keep only the normalised copy
+    except OSError:
+        pass
+    return {"ok": True, "kind": "video", "id": uid, "src": f"/uploads/{uid}.mp4",
+            "filename": file.filename, "duration": round(out.get("duration", 0), 1),
+            "scale_note": f"source {info['w']}x{info['h']} -> 768 px -> 720x1280",
+            "equalised": round(768 / info["h"], 2)}
+
+
+@app.get("/uploads/{name}")
+def uploaded(name: str):
+    if "/" in name or "\\" in name or name.startswith("."):
+        return JSONResponse({"error": "bad name"}, status_code=400)
+    path = os.path.realpath(os.path.join(UPLOAD_DIR, name))
+    if not path.startswith(os.path.realpath(UPLOAD_DIR) + os.sep) or not os.path.exists(path):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    ext = os.path.splitext(path)[1].lower()
+    media = "video/mp4" if ext == ".mp4" else f"image/{ext.lstrip('.').replace('jpg', 'jpeg')}"
+    return FileResponse(path, media_type=media)
+
+
 @app.get("/")
 def index():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
@@ -159,6 +276,7 @@ def main():
 
     os.makedirs(VIDEO_DIR, exist_ok=True)
     os.makedirs(STATIC_DIR, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     DET = Detector(a.config, self_test=not a.no_self_test)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -168,7 +286,8 @@ def main():
           f"({n} clips, head={DET.active}, {DET.warm_ms:.0f} ms/frame)\n", flush=True)
     # No --reload: it would load 2.3 GB of weights twice.
     import uvicorn
-    uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
+    uvicorn.run(app, host=a.host, port=a.port,
+                log_level=("info" if os.environ.get("DEMO_ACCESS_LOG") else "warning"))
 
 
 if __name__ == "__main__":
