@@ -255,4 +255,4 @@ requirements-lock.txt   exact versions used for every reported number
 <!-- TODO before submission: one line per team member -->
 
 - Chin Mun Yau — spec, data plumbing, model, eval harness, experiment programme (issues #1–#25).
-- _(other members: to be added)_
+- (other members: to be added)
