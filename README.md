@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/theia-logo.png" alt="Theia" width="720">
+  <img src="docs/assets/theia-logo.png" alt="Theia" width="1024">
 </p>
 
 <h1 align="center">Robust AI-Generated Image Detector</h1>
