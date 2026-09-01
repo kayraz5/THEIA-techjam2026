@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live AI-content detection — vertical feed demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%230c0d10%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27%235ec8ff%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/styles.css">
+<script>
+/* Set --vh from window.innerHeight before first paint. CSS `zoom` makes vh/dvh resolve
+   inconsistently across browsers inside the zoomed subtree; innerHeight never lies, and it
+   already accounts for browser-level zoom too. */
+(function () {
+  var set = function () {
+    document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+    document.documentElement.style.setProperty('--vw', window.innerWidth + 'px');
+  };
+  set();
+  addEventListener('resize', set, { passive: true });
+  addEventListener('orientationchange', set, { passive: true });
+})();
+</script>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ============ phone: iPhone 17 Pro Max proportions, 440x956 pt ============ -->
+  <div class="col-phone">
+    <div class="phone" id="phone">
+      <div class="glow"></div>
+      <div class="screen">
+        <div class="feed" id="feed"><!-- cards injected --></div>
+
+        <!-- the Dynamic Island, and the notification that expands out of it -->
+        <div class="island" id="island"><span class="lens"></span></div>
+
+        <div class="pill" id="pill" aria-live="polite">
+          <div class="pill-text">
+            <div class="pill-kicker">AI content notice</div>
+            <div class="pill-body">This clip appears AI-generated</div>
+            <div class="pill-sub" id="pillSub">median p(AI) — · ship head · research prototype</div>
+          </div>
+          <img class="pill-thumb" id="pillThumb" alt="the frame that triggered this notice">
+        </div>
+
+        <div class="home-ind"></div>
+
+        <div class="scrim" id="scrim">
+          <div>
+            <div class="scrim-title">Live AI-content detection</div>
+            <div class="scrim-sub">Frames are sampled from the playing clip and scored by a
+              SigLIP2-giant detector running locally on this machine.</div>
+            <button class="scrim-btn" id="startBtn">Tap to start</button>
+            <div class="scrim-note" id="scrimNote">loading model…</div>
+          </div>
+        </div>
+      </div>
+      <div class="bezel"></div>
+    </div>
+
+    <p class="standing-caveat">
+      Research demo. Detector trained on <strong>still-image</strong> generators — AI
+      <em>video</em> frames are an out-of-distribution test for it. Not a moderation product.
+    </p>
+  </div>
+
+  <!-- ============ telemetry ============ -->
+  <div class="col-panel">
+
+    <!-- always visible: the live reading -->
+    <section class="card live">
+      <div class="live-body">
+        <div class="live-main">
+          <div class="live-top">
+            <div class="live-score">
+              <div class="big" id="nowP">—</div>
+              <div class="big-lbl">p(AI) this frame</div>
+            </div>
+
+            <div class="live-meta">
+              <div><span class="k">median-5 · trigger</span><b class="v" id="nowMed">—</b></div>
+              <div><span class="k">EMA α=0.35</span><b class="v" id="nowEma">—</b></div>
+              <div><span class="k">badge state</span><b class="v" id="nowState">off</b></div>
+              <div><span class="k">server</span><b class="v" id="nowMs">—</b></div>
+              <div><span class="k">measured fps</span><b class="v" id="nowFps">—</b></div>
+              <div><span class="k">dropped (busy)</span><b class="v" id="nowDrop">0</b></div>
+            </div>
+          </div>
+
+          <canvas id="spark" class="spark"></canvas>
+          <div class="sparklegend">
+            <span><i class="rule-on"></i>raise 0.9446</span>
+            <span><i class="rule-off"></i>clear 0.70</span>
+            <span class="muted">last 60 frames · raw p(AI) · Schmitt trigger</span>
+          </div>
+
+          <div class="heads" id="heads"></div>
+        </div>
+
+        <!-- own column: tall previews no longer inflate the card's height -->
+        <div class="live-pre">
+          <figure><canvas id="srcCanvas"></canvas><figcaption>frame sent</figcaption></figure>
+          <figure><canvas id="sqCanvas"></canvas><figcaption>squish 384²</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- tabbed, so nothing needs scrolling -->
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="pf">Pre-flight</button>
+      <button class="tab" data-tab="rt">Runtime</button>
+      <button class="tab" data-tab="up">Try your own</button>
+      <span class="tabs-right">
+        <label for="headSel">head</label>
+        <select id="headSel"></select>
+        <button id="labelBtn" class="ghost" title="toggle ground-truth labels (L)">truth</button>
+      </span>
+    </nav>
+
+    <section class="card pane" id="pane-pf">
+      <table class="pf" id="pfTable"></table>
+      <div class="pf-summary" id="pfSummary"></div>
+    </section>
+
+    <section class="card pane hidden" id="pane-rt">
+      <div class="rt-grid">
+        <div>
+          <dl class="kv" id="kv"></dl>
+          <div class="kv-split">
+            <div class="kv-h">capture &amp; badge constants</div>
+            <dl class="kv" id="kvTune"></dl>
+          </div>
+        </div>
+        <div class="rt-side">
+          <div class="selftest" id="selftest">self-test —</div>
+          <p class="hint">The self-test scores <code>demo_images/ai_0_clean.jpg</code> at startup
+            against the value committed in <code>demo_preds.json</code> — proof this page drives
+            the shipped model, not a mock.</p>
+          <p class="hint">Frames go over at native resolution and the server runs the shipped
+            <code>squish_resize</code>, so preprocessing is <code>predict.py</code>'s exact path.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card pane hidden" id="pane-up">
+      <div class="up-grid">
+        <div>
+          <!-- a real <label for>: the picker opens natively, which a display:none input
+               driven by .click() does NOT do in Safari. -->
+          <label class="dropzone" id="dropzone" for="fileInput" tabindex="0">
+            <input type="file" id="fileInput" class="vis-hidden" multiple
+                   accept="image/jpeg,image/png,image/webp,image/bmp,video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv,.avi,.gif">
+            <div class="dz-icon">↑</div>
+            <div class="dz-title">Click to choose a file</div>
+            <div class="dz-sub">or drop one here · jpg png webp bmp · mp4 mov webm mkv avi gif</div>
+          </label>
+        </div>
+        <div class="up-results">
+          <div class="kv-h">Results</div>
+          <div id="upList" class="up-list"><div class="up-empty">nothing uploaded yet</div></div>
+        </div>
+      </div>
+    </section>
+
+
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

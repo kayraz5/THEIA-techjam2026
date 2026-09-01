@@ -38,6 +38,37 @@ Notes:
 | `openai/clip-vit-large-patch14` | MIT (per OpenAI CLIP repository) | baseline comparison arm only |
 | `facebook/dinov3-vitl16-pretrain-lvd1689m` | gated — access not obtained | **not used**; config exists, arm never ran |
 
+## Demo media (`project_demo/`)
+
+The live feed demo plays ten short clips. **None of this media is committed or redistributed.**
+`project_demo/videos.json` records only where each clip comes from, and
+`project_demo/fetch_videos.py` pulls from the original hosts at run time into
+`project_demo/videos*/`, which are gitignored. The clips are re-encoded locally for playback
+(720x1280, audio stripped) and that derived copy never leaves the machine.
+
+| Asset | License | Our use | Redistributed? |
+|---|---|---|---|
+| DeepAction v1 — AI-generated clips (Veo, RunwayML, VideoPoet, CogVideoX-5B, Stable Diffusion video) | **CC BY 4.0** | the AI half of the demo feed; attribution shown on each card | No |
+| DeepAction v1 — `Pexels/` real clips | **Pexels License** | the two "stock" real clips, deliberately included as the hard false-positive case | No |
+| Wikimedia Commons — *Chinese New Year parade, Chinatown* | **CC BY 3.0** (China News Service) | handheld real clip | No |
+| Wikimedia Commons — *Mani Rimdu festival short* | **CC BY-SA 4.0** (Rohit14400) | handheld real clip | No |
+| Wikimedia Commons — *Train enters platform 1, Bialik station* | **CC BY-SA 4.0** (Assaf Yekuel) | handheld real clip | No |
+| Wikimedia Commons — *Santa Apolonia CP 2320, Lisbon* | **CC BY 2.0** (_morgado) | candidate pool only, not in the shipped feed | No |
+
+DeepAction v1 (`https://huggingface.co/datasets/faridlab/deepaction_v1`) is ungated and splits its
+licensing: the six generator folders are CC BY 4.0, the `Pexels/` folder carries the Pexels
+License. Both are recorded separately above because only the first is a Creative Commons grant.
+Pexels and Wikimedia attribution strings are rendered on each card in the demo UI.
+
+Two deliberate exclusions:
+
+- **No generator showcase clips.** Marketing reels from commercial video products are not licensed
+  for this use, and a visible generator watermark would make the demo solvable by OCR rather than
+  by the detector. `fetch_videos.py --verify` fails a clip if `cropdetect` finds residual bars, and
+  the manifest carries a `watermark_crop` field for any clip that would need one.
+- **No Community Forensics imagery** (CC BY-NC-SA 4.0), consistent with the rule already stated in
+  `docs/DEMO_SCRIPT.md`.
+
 ## Code
 
 | Asset | License | Notes |
