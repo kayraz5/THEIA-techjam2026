@@ -312,31 +312,50 @@ These are also recorded in the run summary.
 6. Frozen mode uses 2 cached augmentation draws of the training set (`feature_epochs: 2` in every config; the code default if unset is 3), then 30 head epochs.
 
 ## Repository layout
+
+```text
+.
+├── configs/                          # Experiment configurations (18 arms)
+│   ├── frozen_siglip2_giant_ship.yaml # Shipped model
+│   ├── frozen_siglip2_giant.yaml      # Baseline
+│   └── ...                            # LoRA, CLIP, DINOv3, and ablation arms
+├── src/                              # Training and evaluation package
+│   ├── data/
+│   │   ├── registry.py               # Dataset sources and sample assembly
+│   │   ├── exclusion.py              # Leakage protection
+│   │   └── build_val.py              # Validation-set builder
+│   ├── degradation/
+│   │   ├── transforms.py              # Shared train/eval transforms
+│   │   └── official.py                # NTIRE pipeline wrapper
+│   ├── models/
+│   │   └── backbone.py                # Backbone, parameter check, head, and LoRA
+│   ├── features.py                    # Frozen-feature extraction and caching
+│   ├── train.py                       # Frozen and LoRA training
+│   ├── evaluate.py                    # Metrics, plots, thresholds, and error analysis
+│   └── compare.py                     # Cross-arm comparison
+├── project_demo/                     # Live vertical-video web demo
+│   ├── detector.py                     # Model lifecycle and startup self-test
+│   ├── server.py                       # FastAPI server
+│   ├── fetch_videos.py                 # Download, normalize, and validate media
+│   ├── preflight.py                    # Offline clip scoring
+│   ├── videos.json                     # Clip manifest and selection criteria
+│   └── static/                         # Build-free HTML, CSS, and JavaScript
+├── scripts/                          # Data preparation and experiment utilities
+│   ├── prepare_data.sh                 # Base dataset preparation
+│   ├── prepare_data_ship.sh            # Shipped-model and external-eval datasets
+│   ├── eval_external.py                # External evaluation
+│   └── ...                             # Ablations, controls, sweeps, and run history
+├── docs/                             # Reports, analysis, licenses, and project figures
+├── results/                          # Metrics, plots, contact sheets, and 16 KB heads
+├── tests/                            # Offline unit and end-to-end smoke tests
+├── third_party/                      # Vendored official NTIRE distortion pipeline
+├── predict.py                        # Image-directory inference CLI
+└── requirements-lock.txt             # Exact dependency versions used for results
 ```
-configs/        one YAML per arm (18). Shipped: frozen_siglip2_giant_ship. Baseline: frozen_siglip2_giant.
-                Others are the ablation arms referenced in docs/REPORT.md (2x2, gan, mjv5, sidonly, official, ...)
-src/data/       registry.py (sources), exclusion.py (leak guard), build_val.py
-src/degradation transforms.py (table impl, shared train/eval), official.py (NTIRE wrapper)
-src/models/     backbone.py (wrapper, param assert, linear head, LoRA)
-src/features.py cached frozen-feature extraction
-src/train.py    frozen + lora
-src/evaluate.py grid, deltas, error rates, thresholds/ROC, contact sheets
-src/compare.py  baseline comparison table
-predict.py      deliverable CLI
-project_demo/   live web demo: vertical video feed, frames scored on MPS as you scroll.
-                detector.py (model lifecycle + startup self-test), server.py (FastAPI),
-                fetch_videos.py (manifest -> ffmpeg normalise -> validate), preflight.py,
-                videos.json (manifest + pre-registered clip criteria), static/ (no build step).
-                Media is gitignored and fetched from the original hosts; see docs/DATA_LICENSES.md.
-scripts/        prepare_data.sh + prepare_data_ship.sh (all data pulls), remote_zip.py (HTTP-range zip slicing),
-                eval_external.py, data_ablation.py, resolution_control.py, head_sweep.py, make_results.py.
-                run_queue*.sh / run_*_chain.sh / dl_*.sh are the historical launch scripts for issues #1-#25;
-                they are kept for provenance and are not meant to be re-run.
-third_party/    official NTIRE 2026 distortion pipeline
-tests/          degradation unit tests, end-to-end smoke test (both offline, CPU, no data needed)
-results/        CSVs, heatmaps, contact sheets, RESULTS.md; the two committed heads (*_ship, *_mjv5) are 16 KB each
-requirements-lock.txt   exact versions used for every reported number
-```
+
+Media used by the demo is fetched from its original hosts and remains untracked. Historical
+`run_queue*.sh`, `run_*_chain.sh`, and `dl_*.sh` scripts are retained for experiment provenance and
+are not intended to be rerun. See [the data and model license audit](docs/DATA_LICENSES.md).
 
 ## Team
 
