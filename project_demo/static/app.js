@@ -22,14 +22,19 @@ const TUNING = {
 };
 
 const $ = s => document.querySelector(s);
-const feedEl = $('#feed'), pillEl = $('#pill');
+/** Page zoom from --zoom. getBoundingClientRect() and pointer coords are in VISUAL px;
+ *  CSS lengths and canvas drawing are in element px. visual = element * ZOOM. */
+const ZOOM = parseFloat(
+  getComputedStyle(document.documentElement).getPropertyValue('--zoom')) || 1;
+const feedEl = $('#feed'), pillEl = $('#pill'), phoneEl = $('#phone');
 let CLIPS = [], HEALTH = null, activeCard = null, seq = 0, inflight = false;
 let rateScale = 1, rateResetAt = 0, io = null;
 const fpsWin = [];
 
 // ---------------------------------------------------------------- state
 
-function newState() {
+function newState(prev) {
+  if (prev && prev.thumb) URL.revokeObjectURL(prev.thumb);
   return { raw: [], ema: null, med: null, badge: 'off', onRun: 0, offRun: 0,
            shownAt: 0, thumb: null, medAtTrigger: null, nScored: 0 };
 }
@@ -111,7 +116,10 @@ async function tick(card) {
 
     const changed = updateBadge(st);
     if (changed && st.badge === 'on') {
-      st.thumb = cap.toDataURL('image/jpeg', 0.7);   // the frame that actually triggered it
+      // The frame that actually triggered the badge. Blob URL, not a data: URI — a data URI
+      // dumps ~40 KB of base64 into the DOM attribute and makes the markup unreadable.
+      if (st.thumb) URL.revokeObjectURL(st.thumb);
+      st.thumb = URL.createObjectURL(blob);
     }
     drawPreproc(v);
     render(card);
@@ -151,9 +159,11 @@ function render(card) {
     if (st.thumb) $('#pillThumb').src = st.thumb;
     pillEl.classList.add('on');
     $('#island').classList.add('eaten');
+    phoneEl.classList.add('alert');          // screen edges glow red
   } else {
     pillEl.classList.remove('on');
     $('#island').classList.remove('eaten');
+    phoneEl.classList.remove('alert');
   }
 
   drawSpark(st);
@@ -166,21 +176,31 @@ function render(card) {
             st.lastBytes ? (st.lastBytes / 1024).toFixed(0) + ' KB' : '—' });
 }
 
+/** Match the canvas backing store to its CSS box so it stays crisp at any size. */
+function fitSpark() {
+  const c = $('#spark'), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const px = Math.round(r.width * dpr), py = Math.round(r.height * dpr);
+  if (c.width !== px || c.height !== py) { c.width = px; c.height = py; }
+  const x = c.getContext('2d');
+  x.setTransform(dpr * ZOOM, 0, 0, dpr * ZOOM, 0, 0);   // draw in element px
+  return { x, W: Math.max(200, r.width / ZOOM), H: Math.max(40, r.height / ZOOM) };
+}
+
 function drawSpark(st) {
-  const c = $('#spark'), x = c.getContext('2d'), W = c.width, H = c.height;
+  const { x, W, H } = fitSpark();
   x.clearRect(0, 0, W, H);
-  const PAD = 46;                       // gutter for the y labels ('1.0' at 15px)
+  const PAD = 30;                       // gutter for the y labels
   const data = st.raw.slice(-TUNING.sparkN);
-  const y = p => H - 10 - p * (H - 20);
+  const y = p => H - 8 - p * (H - 16);
 
   // y axis: 0 / 0.5 / 1 so a flat-high or flat-low trace is still readable as a level
-  x.font = '500 15px ui-monospace,Menlo,monospace';
+  x.font = '500 10px ui-monospace,Menlo,monospace';
   x.textBaseline = 'middle';
   for (const v of [0, 0.5, 1]) {
     x.strokeStyle = '#1e222a'; x.lineWidth = 1;
     x.beginPath(); x.moveTo(PAD, y(v)); x.lineTo(W, y(v)); x.stroke();
     x.fillStyle = '#4d5563'; x.textAlign = 'right';
-    x.fillText(v.toFixed(1), PAD - 6, y(v));
+    x.fillText(v.toFixed(1), PAD - 5, y(v));
   }
   for (const [v, col] of [[TUNING.onThresh, '#ff6b6b'], [TUNING.offThresh, '#6b7484']]) {
     x.setLineDash([5, 5]); x.strokeStyle = col; x.lineWidth = 1.2;
@@ -192,17 +212,28 @@ function drawSpark(st) {
   const px = i => PAD + i * dx;
   x.beginPath();
   data.forEach((p, i) => i ? x.lineTo(px(i), y(p)) : x.moveTo(px(i), y(p)));
-  x.strokeStyle = '#5ec8ff'; x.lineWidth = 2; x.stroke();
+  x.strokeStyle = '#5ec8ff'; x.lineWidth = 1.8; x.stroke();
   const lp = data[data.length - 1];
-  x.beginPath(); x.arc(px(data.length - 1), y(lp), 4, 0, 7);
+  x.beginPath(); x.arc(px(data.length - 1), y(lp), 3.2, 0, 7);
   x.fillStyle = lp >= TUNING.onThresh ? '#ff6b6b' : '#5ec8ff'; x.fill();
 }
 
+/** Size a canvas's backing store to its CSS box at device pixel ratio, then return its context. */
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const px = Math.round(r.width * dpr), py = Math.round(r.height * dpr);
+  if (c.width !== px || c.height !== py) { c.width = px; c.height = py; }
+  const x = c.getContext('2d');
+  x.setTransform(dpr * ZOOM, 0, 0, dpr * ZOOM, 0, 0);
+  return { x, W: Math.max(8, r.width / ZOOM), H: Math.max(8, r.height / ZOOM) };
+}
+
 function drawPreproc(v) {
-  const s = $('#srcCanvas'), q = $('#sqCanvas');
-  s.getContext('2d').drawImage(v, 0, 0, s.width, s.height);
+  const a = fitCanvas($('#srcCanvas'));
+  a.x.drawImage(v, 0, 0, a.W, a.H);
   // Squish to a square, ignoring aspect — exactly what squish_resize does at 384.
-  q.getContext('2d').drawImage(v, 0, 0, q.width, q.height);
+  const b = fitCanvas($('#sqCanvas'));
+  b.x.drawImage(v, 0, 0, b.W, b.H);
 }
 
 const kvState = {};
@@ -247,6 +278,7 @@ function setActive(card) {
   activeCard = card;
   pillEl.classList.remove('on');
   $('#island').classList.remove('eaten');
+  phoneEl.classList.remove('alert');
   dropped = 0; fpsWin.length = 0;
   if (!card) return;
   document.querySelectorAll('#pfTable tr.is-live').forEach(tr => tr.classList.remove('is-live'));
@@ -272,15 +304,6 @@ function renderPreflight() {
     `<span class="${nearFP ? 's-warn' : 's-ok'}"><b>${re.length - nearFP}/${re.length}</b> reals clean` +
     `${nearFP ? ` · ${nearFP} fires on some passes` : ''}</span>` +
     `<span class="s-dim">threshold 0.9446 · median-5 ×2 to raise, ≤0.70 ×5 to clear</span>`;
-  $('#pfNote').innerHTML =
-    '<b>Disclosure.</b> Clips are chosen by the pre-registered content criteria in ' +
-    '<code>videos.json</code>, never by score. One post-pre-flight change: <code>ai_veo_yoga</code> ' +
-    'moved to the candidate pool and <code>ai_videopoet_jog</code> in, so the feed spans three ' +
-    'generator architectures rather than two — which also lifts the flagged count from 2/5 to 3/5, ' +
-    'so read it as score-affecting. Both stay measured: veo_yoga 0.0090 (missed), videopoet_jog ' +
-    '0.9920. <code>preflight.py --all</code> scores all 18 candidates, including CogVideoX-5B ' +
-    '(0.608, missed) and SD-video (0.9998), excluded from the feed only because their native ' +
-    'height is under the 768 px equalisation floor.';
   $('#pfTable').innerHTML =
     `<tr><th>clip</th><th>truth</th><th>generator</th><th>median p</th><th>peak med-5</th>` +
     `<th>badge on</th><th>verdict</th></tr>` +
@@ -343,7 +366,7 @@ async function boot() {
       const hh = HEALTH.heads[r.active_head];
       setKV({ checkpoint: hh.ckpt, sha256: hh.sha256.slice(0, 12), 'head bytes': hh.bytes });
       // The trigger statistic belongs to one head; restart it rather than mixing scales.
-      if (activeCard) { activeCard._state = newState(); render(activeCard); }
+      if (activeCard) { activeCard._state = newState(activeCard._state); render(activeCard); }
     }
   };
 
@@ -367,7 +390,7 @@ $('#startBtn').onclick = () => {
   $('#scrim').classList.add('hidden');
   setActive(feedEl.firstElementChild);
 };
-const PANES = ['pf', 'rt', 'up', 'lim'];
+const PANES = ['pf', 'rt', 'up'];
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
   PANES.forEach(n => $('#pane-' + n).classList.toggle('hidden', n !== name));
@@ -460,9 +483,15 @@ async function sendUpload(file) {
 
 (() => {
   const dz = $('#dropzone'), input = $('#fileInput');
-  dz.onclick = () => input.click();
-  dz.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
-  input.onchange = () => { for (const f of input.files) sendUpload(f); input.value = ''; };
+  // No dz.onclick: <label for="fileInput"> already opens the picker, and adding a
+  // programmatic input.click() on top of it opens the dialog twice.
+  dz.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+  });
+  input.addEventListener('change', () => {
+    for (const f of input.files) sendUpload(f);
+    input.value = '';                      // so re-picking the same file fires change again
+  });
   for (const ev of ['dragenter', 'dragover']) {
     dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); });
   }
@@ -486,6 +515,63 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' && activeCard) activeCard._video.pause();
   else if (activeCard) activeCard._video.play().catch(() => {});
 });
+
+// ---------------------------------------------------------------- resize
+
+(() => {
+  const card = document.querySelector('.card.live');
+  const grip = document.createElement('div');
+  grip.className = 'resize-grip';
+  grip.title = 'drag to resize · double-click to reset';
+  card.appendChild(grip);
+
+  const KEY = 'demo.liveH';
+  let curH = null;                                   // element px, null = auto
+  // innerHeight is unzoomed; convert to the element space the card is sized in.
+  const viewH = () => window.innerHeight / ZOOM;
+  // Leave room for the tab bar and a usable pane underneath.
+  const clamp = v => Math.max(186, Math.min(v, viewH() - 210));
+  const apply = v => {
+    const h = clamp(v);
+    curH = h;
+    card.style.height = h + 'px';
+    // Grow the preprocessing previews with the card, but never so far that the sparkline
+    // is pushed below its 62 px floor.
+    card.style.setProperty('--pre-h',
+      Math.round(Math.max(110, Math.min(h * 0.46, h - 150, 320))) + 'px');
+    if (activeCard) { drawSpark(activeCard._state); drawPreproc(activeCard._video); }
+  };
+
+  try { const v = +localStorage.getItem(KEY); if (v) apply(v); } catch {}
+
+  grip.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const y0 = e.clientY;
+    const h0 = curH ?? card.getBoundingClientRect().height / ZOOM;
+    const move = ev => apply(h0 + (ev.clientY - y0) / ZOOM);   // visual px -> element px
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      try { localStorage.setItem(KEY, parseInt(card.style.height, 10)); } catch {}
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+  });
+
+  grip.addEventListener('dblclick', () => {
+    curH = null;
+    card.style.height = '';
+    card.style.removeProperty('--pre-h');
+    try { localStorage.removeItem(KEY); } catch {}
+    if (activeCard) { drawSpark(activeCard._state); drawPreproc(activeCard._video); }
+  });
+
+  addEventListener('resize', () => {
+    if (card.style.height) apply(parseInt(card.style.height, 10));
+    if (activeCard) drawSpark(activeCard._state);
+  });
+})();
 
 $('#startBtn').disabled = true;
 boot();

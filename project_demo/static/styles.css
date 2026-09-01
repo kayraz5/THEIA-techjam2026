@@ -12,10 +12,21 @@
   /* iPhone 17 Pro Max: 440 x 956 pt. Aspect 0.46025 — notably taller than 9:16 (0.5625). */
   --phone-ar: 440 / 956;
   --gap: 14px;
+
+  /* Everything is authored at the old 100% and scaled here, so one number changes the whole
+     UI. `zoom` (not `transform: scale`) because zoom reflows — a transform would just
+     overflow. Viewport units and pointer deltas are NOT scaled by zoom, so anything using
+     them divides by --zoom: see .wrap below and ZOOM in app.js. */
+  --zoom: 1.5;
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;height:100%;overflow:hidden}
+/* html is NOT zoomed and carries the same background, so no gap can ever show through. */
+html{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg)}
+/* No height:100% here — a zoomed body would resolve it to 100% x zoom and overflow.
+   .wrap owns the height instead. */
 body{
+  margin:0;padding:0;overflow:hidden;
+  zoom:var(--zoom);
   background:var(--bg); color:var(--ink);
   font:13px/1.5 ui-sans-serif,-apple-system,"SF Pro Text",Inter,Segoe UI,Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -28,7 +39,8 @@ code{font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#0a0b0
 .hidden{display:none !important}
 
 .wrap{
-  height:100vh; height:100dvh; display:flex; gap:22px;
+  height:calc(var(--vh, 100vh) / var(--zoom));
+  display:flex; gap:22px;
   padding:14px 18px; align-items:stretch; justify-content:center;
 }
 
@@ -45,10 +57,40 @@ code{font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#0a0b0
   box-shadow:0 0 0 1.5px #3a3f49, 0 0 0 3px #16181d, 0 26px 60px rgba(0,0,0,.7);
   flex:1 1 auto;
 }
+
+/* Alert glow. A separate layer whose OPACITY animates — animating a box-shadow directly
+   repaints the whole phone every frame. It sits under .screen, and its shadow spreads
+   outward past the phone, so it never covers the video. */
+.glow{
+  position:absolute; inset:0; border-radius:inherit; z-index:0; pointer-events:none;
+  opacity:0; transition:opacity .38s ease;
+  box-shadow:
+    0 0 0 2px rgba(255,72,72,.92),
+    0 0 16px 2px rgba(255,48,48,.62),
+    0 0 42px 8px rgba(255,32,32,.42),
+    0 0 86px 22px rgba(255,24,24,.22);
+}
+.phone.alert .glow{opacity:1; animation:glow-pulse 1.7s ease-in-out infinite}
+@keyframes glow-pulse{0%,100%{opacity:.7} 50%{opacity:1}}
 .screen{position:relative;width:100%;height:100%;border-radius:11.6% / 5.35%;
   overflow:hidden;background:#000}
 .bezel{position:absolute;inset:5px;border-radius:11.6% / 5.35%;pointer-events:none;z-index:9;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);
+  transition:box-shadow .38s ease}
+.phone.alert .bezel{
+  box-shadow:inset 0 0 0 2px rgba(255,86,86,.92),
+             inset 0 0 12px rgba(255,48,48,.34);
+  animation:bezel-pulse 1.7s ease-in-out infinite}
+@keyframes bezel-pulse{
+  0%,100%{box-shadow:inset 0 0 0 1.5px rgba(255,86,86,.62),
+                     inset 0 0 9px rgba(255,48,48,.20)}
+  50%{box-shadow:inset 0 0 0 2.5px rgba(255,104,104,1),
+                inset 0 0 16px rgba(255,56,56,.42)}}
+
+@media (prefers-reduced-motion:reduce){
+  .phone.alert .glow{animation:none;opacity:.92}
+  .phone.alert .bezel{animation:none}
+}
 
 .feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;
   scrollbar-width:none}
@@ -95,9 +137,13 @@ body.show-truth .ov-truth{display:block}
 .island.eaten{opacity:0;transform:translateX(-50%) scale(.8)}
 
 .pill{
-  position:absolute; top:1.15%; left:3.2%; right:3.2%; z-index:7;
-  display:grid; grid-template-columns:1fr auto; gap:11px; align-items:center;
-  padding:10px 12px; border-radius:26px;
+  /* Inset must clear the SCREEN's corner curve. The screen radius is 11.6%/5.35%, so at the
+     pill's top edge (y = 1.15% of height) the screen's own edge is already ~4.4% of the width
+     inward — a 3.2% inset got sliced diagonally by the corner. 7.5% also matches Apple's
+     expanded Dynamic Island, which is 371 of 440 pt wide (~7.8% each side). */
+  position:absolute; top:1.15%; left:7.5%; right:7.5%; z-index:7;
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:11px; align-items:center;
+  padding:10px 13px; border-radius:24px;
   background:rgba(14,14,16,.9); backdrop-filter:blur(22px) saturate(1.45);
   -webkit-backdrop-filter:blur(22px) saturate(1.45);
   box-shadow:0 14px 34px rgba(0,0,0,.62), inset 0 0 0 1px rgba(255,255,255,.09);
@@ -108,12 +154,12 @@ body.show-truth .ov-truth{display:block}
   transition:transform .44s cubic-bezier(.2,.95,.25,1.05), opacity .2s ease;
 }
 .pill.on{transform:none;opacity:1}
+.pill-text{min-width:0}
 .pill-kicker{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
   color:rgba(255,255,255,.6);margin-bottom:1px;white-space:nowrap}
-.pill-body{font-size:14px;font-weight:650;color:#fff;letter-spacing:-.01em;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
-.pill-sub{font-size:9.5px;color:rgba(255,255,255,.55);margin-top:2px;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
+.pill-body{font-size:14px;font-weight:650;color:#fff;letter-spacing:-.01em;line-height:1.25;
+  text-wrap:balance}
+.pill-sub{font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;line-height:1.35}
 .pill-thumb{width:42px;height:42px;border-radius:11px;object-fit:cover;background:#222;
   box-shadow:0 0 0 1px rgba(255,255,255,.1)}
 @media (prefers-reduced-motion:reduce){
@@ -132,17 +178,25 @@ body.show-truth .ov-truth{display:block}
 .scrim-note{margin-top:12px;font-size:10.5px;color:var(--ink-faint)}
 
 .standing-caveat{margin:0;font-size:10.5px;line-height:1.5;color:var(--ink-faint);
-  text-align:center;max-width:min(46vh,420px);flex:0 0 auto}
+  text-align:center;max-width:420px;flex:0 0 auto}
 .standing-caveat strong,.standing-caveat em{color:var(--ink-dim)}
 
 /* ---------------- panel ---------------- */
 .col-panel{flex:1 1 auto;min-width:420px;max-width:820px;height:100%;
   display:flex;flex-direction:column;gap:var(--gap);min-height:0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
-.card.live{flex:0 0 auto}
-.pane{flex:1 1 auto;min-height:0;overflow:auto;scrollbar-width:thin}
+.card.live{flex:0 0 auto;position:relative;display:flex;flex-direction:column;
+  padding-bottom:20px}          /* room for the resize grip */
+.pane{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
+  scrollbar-color:#343a45 transparent;overscroll-behavior:contain}
+.pane::-webkit-scrollbar{width:9px}
+.pane::-webkit-scrollbar-thumb{background:#343a45;border-radius:9px;
+  border:2px solid var(--panel)}
+.pane::-webkit-scrollbar-track{background:transparent}
 
-.live-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:10px}
+.live-body{display:flex;gap:14px;flex:1 1 auto;min-height:0}
+.live-main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0}
+.live-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:10px;flex:0 0 auto}
 .live-score{flex:0 0 auto}
 .big{font:600 44px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.03em;
   font-variant-numeric:tabular-nums}
@@ -155,14 +209,19 @@ body.show-truth .ov-truth{display:block}
 .live-meta .k{color:var(--ink-faint);white-space:nowrap}
 .live-meta .v{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;
   font-weight:500;white-space:nowrap}
-.live-pre{display:flex;gap:8px;flex:0 0 auto}
-.live-pre figure{margin:0}
-.live-pre canvas{display:block;border-radius:6px;background:#0a0b0e;border:1px solid var(--line);
-  height:64px;width:auto}
-.live-pre figcaption{font-size:8.5px;color:var(--ink-faint);margin-top:3px;text-align:center}
+.live-pre{display:flex;gap:10px;flex:0 0 auto;align-items:flex-start;align-self:flex-start}
+.live-pre figure{margin:0;display:flex;flex-direction:column;align-items:center}
+/* Height comes from --pre-h so dragging the card resizes these too. aspect-ratio (not the
+   width attribute) fixes the box, so the backing store can be re-fitted at any dpr. */
+.live-pre canvas{display:block;border-radius:8px;background:#0a0b0e;border:1px solid var(--line);
+  height:var(--pre-h,124px);width:auto}
+#srcCanvas{aspect-ratio:9/16}
+#sqCanvas{aspect-ratio:1/1}
+.live-pre figcaption{font-size:10px;color:var(--ink-faint);margin-top:5px;text-align:center;
+  white-space:nowrap}
 
-.spark{width:100%;height:62px;display:block;background:#0a0b0e;border-radius:8px;
-  border:1px solid var(--line)}
+.spark{width:100%;flex:1 1 0;min-height:62px;display:block;background:#0a0b0e;
+  border-radius:8px;border:1px solid var(--line)}
 .sparklegend{display:flex;gap:12px;align-items:center;font-size:9.5px;color:var(--ink-faint);
   margin:5px 0 10px}
 .sparklegend i{display:inline-block;width:13px;height:0;border-top:1px dashed;vertical-align:middle;
@@ -175,6 +234,18 @@ body.show-truth .ov-truth{display:block}
 .head.active{border-color:var(--accent)}
 .head .hn{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint)}
 .head .hv{font:600 16px/1.25 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+.resize-grip{position:absolute;left:0;right:0;bottom:0;height:14px;cursor:ns-resize;
+  display:grid;place-items:center;touch-action:none}
+.resize-grip::before{content:'';width:46px;height:4px;border-radius:3px;background:#363c48;
+  transition:background .15s,width .15s}
+.resize-grip:hover::before{width:60px}
+.resize-grip:hover::before,.resize-grip:active::before{background:var(--accent)}
+
+/* visually hidden but still rendered — a display:none file input cannot be opened
+   by a label or .click() in Safari */
+.vis-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 
 /* ---------------- tabs ---------------- */
 .tabs{display:flex;align-items:center;gap:6px;flex:0 0 auto}
@@ -189,17 +260,22 @@ select,button.ghost{background:var(--panel2);color:var(--ink);border:1px solid v
 .hint{font-size:10.5px;color:var(--ink-faint);line-height:1.55;margin:8px 0 0}
 
 /* ---------------- tables / panes ---------------- */
+/* The sticky <th> pins to the scrollport top; with padding-top on the pane, rows scroll
+   through that gap and appear ABOVE the header. Move the spacing into the header itself. */
+#pane-pf{padding-top:0}
+.pf th{padding-top:13px}
 .pf{width:100%;border-collapse:collapse;font-size:11px}
 .pf th{text-align:left;color:var(--ink-faint);font-weight:500;padding:4px 6px;
   border-bottom:1px solid var(--line);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;
-  position:sticky;top:0;background:var(--panel)}
-.pf td{padding:4px 6px;border-bottom:1px solid #1f232a;font-variant-numeric:tabular-nums}
+  position:sticky;top:0;z-index:2;background:var(--panel);
+  box-shadow:0 1px 0 var(--line)}
+.pf td{padding:3px 6px;border-bottom:1px solid #1f232a;font-variant-numeric:tabular-nums}
 .pf td.num{font-family:ui-monospace,Menlo,monospace}
 .pf .v-ok{color:var(--good)} .pf .v-wrong{color:var(--bad)}
 .pf .v-partial,.pf .v-flicker{color:var(--warn)}
 .pf tr.is-live td{background:rgba(94,200,255,.09)}
 
-.pf-summary{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.pf-summary{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0 0}
 .pf-summary span{font-size:10.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);
   background:var(--panel2);color:var(--ink-dim)}
 .pf-summary b{color:var(--ink);font-variant-numeric:tabular-nums}
@@ -208,13 +284,13 @@ select,button.ghost{background:var(--panel2);color:var(--ink);border:1px solid v
 .pf-summary .s-dim{color:var(--ink-faint)}
 
 .rt-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:11px;
-  align-content:start}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;font-size:11px;
+  align-content:start;line-height:1.45}
 .kv dt{color:var(--ink-faint)}
 .kv dd{margin:0;font-family:ui-monospace,Menlo,monospace;overflow-wrap:anywhere;
   word-break:normal}
 .rt-side{display:flex;flex-direction:column;gap:8px}
-.kv-split{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.kv-split{margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
 .kv-h{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);
   margin-bottom:5px}
 .selftest{font-size:10.5px;padding:8px 10px;border-radius:8px;
@@ -232,11 +308,11 @@ select,button.ghost{background:var(--panel2);color:var(--ink);border:1px solid v
   font-size:10.5px;line-height:1.5}
 
 /* Short viewports: let the page scroll rather than clip anything. */
-@media (max-height:620px){
+@media (max-height:720px){   /* ~480px of usable space at 150% */
   html,body{overflow:auto}
   .wrap{height:auto;min-height:100vh}
 }
-@media (max-width:1080px){
+@media (max-width:1500px){   /* ~1000px of usable width at 150% */
   html,body{overflow:auto}
   .wrap{flex-direction:column;align-items:center;height:auto;min-height:100vh}
   .col-phone{height:78vh}
@@ -247,8 +323,9 @@ select,button.ghost{background:var(--panel2);color:var(--ink);border:1px solid v
 
 /* ---------------- upload ---------------- */
 .up-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;height:100%}
-.dropzone{border:1.5px dashed #333945;border-radius:12px;padding:22px 16px;text-align:center;
-  cursor:pointer;background:var(--panel2);transition:border-color .15s,background .15s}
+.dropzone{display:block;border:1.5px dashed #333945;border-radius:12px;padding:22px 16px;
+  text-align:center;cursor:pointer;background:var(--panel2);
+  transition:border-color .15s,background .15s}
 .dropzone:hover,.dropzone:focus-visible{border-color:var(--accent);background:#1c222b;outline:none}
 .dropzone.over{border-color:var(--accent);background:#16242e}
 .dropzone.busy{opacity:.55;cursor:progress}

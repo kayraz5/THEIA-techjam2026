@@ -6,6 +6,20 @@
 <title>Live AI-content detection — vertical feed demo</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%230c0d10%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27%235ec8ff%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/styles.css">
+<script>
+/* Set --vh from window.innerHeight before first paint. CSS `zoom` makes vh/dvh resolve
+   inconsistently across browsers inside the zoomed subtree; innerHeight never lies, and it
+   already accounts for browser-level zoom too. */
+(function () {
+  var set = function () {
+    document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+    document.documentElement.style.setProperty('--vw', window.innerWidth + 'px');
+  };
+  set();
+  addEventListener('resize', set, { passive: true });
+  addEventListener('orientationchange', set, { passive: true });
+})();
+</script>
 </head>
 <body>
 
@@ -13,7 +27,8 @@
 
   <!-- ============ phone: iPhone 17 Pro Max proportions, 440x956 pt ============ -->
   <div class="col-phone">
-    <div class="phone">
+    <div class="phone" id="phone">
+      <div class="glow"></div>
       <div class="screen">
         <div class="feed" id="feed"><!-- cards injected --></div>
 
@@ -55,37 +70,40 @@
 
     <!-- always visible: the live reading -->
     <section class="card live">
-      <div class="live-top">
-        <div class="live-score">
-          <div class="big" id="nowP">—</div>
-          <div class="big-lbl">p(AI) this frame</div>
+      <div class="live-body">
+        <div class="live-main">
+          <div class="live-top">
+            <div class="live-score">
+              <div class="big" id="nowP">—</div>
+              <div class="big-lbl">p(AI) this frame</div>
+            </div>
+
+            <div class="live-meta">
+              <div><span class="k">median-5 · trigger</span><b class="v" id="nowMed">—</b></div>
+              <div><span class="k">EMA α=0.35</span><b class="v" id="nowEma">—</b></div>
+              <div><span class="k">badge state</span><b class="v" id="nowState">off</b></div>
+              <div><span class="k">server</span><b class="v" id="nowMs">—</b></div>
+              <div><span class="k">measured fps</span><b class="v" id="nowFps">—</b></div>
+              <div><span class="k">dropped (busy)</span><b class="v" id="nowDrop">0</b></div>
+            </div>
+          </div>
+
+          <canvas id="spark" class="spark"></canvas>
+          <div class="sparklegend">
+            <span><i class="rule-on"></i>raise 0.9446</span>
+            <span><i class="rule-off"></i>clear 0.70</span>
+            <span class="muted">last 60 frames · raw p(AI) · Schmitt trigger</span>
+          </div>
+
+          <div class="heads" id="heads"></div>
         </div>
 
-        <div class="live-meta">
-          <div><span class="k">median-5 · trigger</span><b class="v" id="nowMed">—</b></div>
-          <div><span class="k">EMA α=0.35</span><b class="v" id="nowEma">—</b></div>
-          <div><span class="k">badge state</span><b class="v" id="nowState">off</b></div>
-          <div><span class="k">server</span><b class="v" id="nowMs">—</b></div>
-          <div><span class="k">measured fps</span><b class="v" id="nowFps">—</b></div>
-          <div><span class="k">dropped (busy)</span><b class="v" id="nowDrop">0</b></div>
-        </div>
-
+        <!-- own column: tall previews no longer inflate the card's height -->
         <div class="live-pre">
-          <figure><canvas id="srcCanvas" width="108" height="192"></canvas>
-            <figcaption>frame sent</figcaption></figure>
-          <figure><canvas id="sqCanvas" width="108" height="108"></canvas>
-            <figcaption>squish 384²</figcaption></figure>
+          <figure><canvas id="srcCanvas"></canvas><figcaption>frame sent</figcaption></figure>
+          <figure><canvas id="sqCanvas"></canvas><figcaption>squish 384²</figcaption></figure>
         </div>
       </div>
-
-      <canvas id="spark" class="spark" width="900" height="130"></canvas>
-      <div class="sparklegend">
-        <span><i class="rule-on"></i>raise 0.9446</span>
-        <span><i class="rule-off"></i>clear 0.70</span>
-        <span class="muted">last 60 frames · raw p(AI) · thresholds asymmetric on purpose (Schmitt trigger)</span>
-      </div>
-
-      <div class="heads" id="heads"></div>
     </section>
 
     <!-- tabbed, so nothing needs scrolling -->
@@ -93,7 +111,6 @@
       <button class="tab active" data-tab="pf">Pre-flight</button>
       <button class="tab" data-tab="rt">Runtime</button>
       <button class="tab" data-tab="up">Try your own</button>
-      <button class="tab" data-tab="lim">What it can &amp; can't do</button>
       <span class="tabs-right">
         <label for="headSel">head</label>
         <select id="headSel"></select>
@@ -104,7 +121,6 @@
     <section class="card pane" id="pane-pf">
       <table class="pf" id="pfTable"></table>
       <div class="pf-summary" id="pfSummary"></div>
-      <p class="hint" id="pfNote"></p>
     </section>
 
     <section class="card pane hidden" id="pane-rt">
@@ -118,12 +134,11 @@
         </div>
         <div class="rt-side">
           <div class="selftest" id="selftest">self-test —</div>
-          <p class="hint">The self-test scores <code>demo_images/ai_0_clean.jpg</code> at startup and
-            compares it with the value committed in <code>demo_preds.json</code>. It is the proof
-            that this page drives the shipped model and not a mock.</p>
-          <p class="hint">Frames are sent at native resolution; the server runs the shipped
-            <code>squish_resize</code>, so preprocessing is the same path <code>predict.py</code>
-            uses. Capture quality is pinned at JPEG q0.95 — at q60 a known fake fell 0.983 → 0.511.</p>
+          <p class="hint">The self-test scores <code>demo_images/ai_0_clean.jpg</code> at startup
+            against the value committed in <code>demo_preds.json</code> — proof this page drives
+            the shipped model, not a mock.</p>
+          <p class="hint">Frames go over at native resolution and the server runs the shipped
+            <code>squish_resize</code>, so preprocessing is <code>predict.py</code>'s exact path.</p>
         </div>
       </div>
     </section>
@@ -131,24 +146,15 @@
     <section class="card pane hidden" id="pane-up">
       <div class="up-grid">
         <div>
-          <div class="dropzone" id="dropzone" tabindex="0" role="button"
-               aria-label="Upload an image or video to score">
-            <input type="file" id="fileInput" hidden
+          <!-- a real <label for>: the picker opens natively, which a display:none input
+               driven by .click() does NOT do in Safari. -->
+          <label class="dropzone" id="dropzone" for="fileInput" tabindex="0">
+            <input type="file" id="fileInput" class="vis-hidden" multiple
                    accept="image/jpeg,image/png,image/webp,image/bmp,video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv,.avi,.gif">
             <div class="dz-icon">↑</div>
-            <div class="dz-title">Drop an image or video here</div>
-            <div class="dz-sub">or click to choose · jpg png webp bmp · mp4 mov webm mkv avi gif</div>
-          </div>
-          <p class="hint">Uploads run through the <b>same</b> pipeline as the feed: video is
-            equalised through a common 768&nbsp;px intermediate then cropped to fill 720×1280 and
-            trimmed to 12&nbsp;s, so an uploaded clip is comparable to a shipped one rather than
-            scored under different conditions. A video is added to the feed and scored live as you
-            watch it; an image is scored once, immediately.</p>
-          <p class="hint"><b>Anything that fails validation is deleted, not kept</b> — unreadable
-            file, unsupported codec, under 1&nbsp;s, over 300&nbsp;MB, or letterbox bars that
-            survive the crop (those would make the score incomparable). The reason is shown below.</p>
-          <p class="hint">Nothing you upload leaves this machine. Files are written to the
-            gitignored <code>project_demo/uploads/</code>.</p>
+            <div class="dz-title">Click to choose a file</div>
+            <div class="dz-sub">or drop one here · jpg png webp bmp · mp4 mov webm mkv avi gif</div>
+          </label>
         </div>
         <div class="up-results">
           <div class="kv-h">Results</div>
@@ -157,66 +163,6 @@
       </div>
     </section>
 
-    <section class="card pane hidden" id="pane-lim">
-      <div class="lim-cols">
-        <div>
-          <h3 class="h3-warn">This feed is curated — read 5/5 with that in mind</h3>
-          <ul class="tight">
-            <li>The shipped feed scores <b>5 of 5</b> AI clips flagged and <b>0 of 5</b> reals
-              firing. <b>That is not an unbiased accuracy estimate.</b> Candidates the detector got
-              wrong were <em>removed</em> from this feed at the author's instruction.</li>
-            <li>Over <b>all 22 candidates</b>, unfiltered: <b>8 of 13</b> AI clips flagged and
-              <b>2 of 9</b> reals at or over the trigger. Missed: all three <b>Veo</b> clips
-              (median 0.008–0.146), <b>CogVideoX-5B</b> (0.480), one VideoPoet (0.528). False
-              alarms: two Pexels <b>stock</b> clips (peak median-5 0.950 and 0.974).</li>
-            <li>Only RunwayML and VideoPoet survive among families that also clear the 768&nbsp;px
-              equalisation floor, so <b>the feed covers two architectures, not five</b>.</li>
-            <li>Every removal is listed with its score in <code>videos.json</code> under
-              <code>removed_for_failing</code>, and every removed clip is still scored by
-              <code>preflight.py --all</code>. Nothing was deleted from the record.</li>
-          </ul>
-          <h3>Validated</h3>
-          <ul class="tight">
-            <li>15-condition grid, 13,841 held-out images: worst cell <b>0.9951</b>, max drop
-              <b>0.0039</b>.</li>
-            <li>External, never trained on: Community Forensics <b>0.9917</b> (10 unseen
-              generators); RRDataset <code>original</code> <b>0.9732</b>.</li>
-            <li>No-leakage hash gate; second independent real source (gap +0.0011);
-              one-class-downscale control.</li>
-          </ul>
-          <h3>Operating point</h3>
-          <p class="tighttext">0.9446, <code>thresholds.csv @FPR&lt;=0.001</code>. That flags
-            <b>0.00%</b> of in-distribution COCO reals — but <b>1.23%</b> (Community Forensics) and
-            <b>2.93%</b> (RRDataset) of reals never trained on. <b>Judge by the second pair.</b></p>
-        </div>
-        <div>
-          <h3>Not validated — applies to everything here</h3>
-          <ol class="tight">
-            <li><b>Video generators.</b> Zero video frames, zero temporal-VAE outputs in training.
-              §7.7: failures are <em>architectural, not stylistic</em>. The shipped head still ranks
-              unseen architectures well (Hourglass AUC 0.9398) but is poorly <em>calibrated</em> on
-              them (mean 0.689) — hence the high threshold. The Veo misses are that, live.</li>
-            <li><b>Video compression.</b> Our JPEG cells are intra-frame only; H.264 inter-frame
-              prediction and GOP structure are unmeasured.</li>
-            <li><b>Genuine downsampling.</b> <code>resize</code> downscales <em>and upscales
-              back</em>, measuring low-pass damage at constant pixel count. 100% of validation reals
-              are under 384 px and get upsampled; 0% of fakes are. Video frames get downsampled —
-              not an axis in the grid.</li>
-            <li><b>Residual resolution sensitivity.</b> 5.1% of downscaled reals flagged vs 1.2%
-              clean — reduced ~13×, <em>not eliminated</em> (§7.8).</li>
-            <li><b>Re-digitization.</b> §10.3, unmeasured — and the ffmpeg pass these clips go
-              through is itself one.</li>
-            <li><b>Chained transforms.</b> Our grid applies exactly one; NTIRE chains up to 5 of 36.</li>
-            <li><b>Modern real photography.</b> §10.6 / SSAFE — untested, and the stock clips here
-              sit inside that gap.</li>
-            <li><b>The grid is not independent of training.</b> Train and eval share one transform
-              table, so generalisation rests on 0.9917 / 0.9732, <em>not</em> 0.9951.</li>
-          </ol>
-          <p class="warn">Verdicts here are illustrative, not authoritative. Do not use this to
-            accuse anyone of anything.</p>
-        </div>
-      </div>
-    </section>
 
   </div>
 </div>
