@@ -1,4 +1,28 @@
-# Robust AI-Generated Image Detector
+<p align="center">
+  <img src="docs/assets/theia-logo.png" alt="Theia" width="720">
+</p>
+
+<h1 align="center">Robust AI-Generated Image Detector</h1>
+
+<p align="center">
+  <strong>Reliable AI-image detection under compression, blur, resizing, noise, colour shifts, and cropping.</strong>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> •
+  <a href="results/RESULTS.md">Results</a> •
+  <a href="docs/REPORT.md">Technical report</a> •
+  <a href="project_demo/README.md">Live demo</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&amp;logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/PyTorch-SigLIP2-EE4C2C?logo=pytorch&amp;logoColor=white" alt="PyTorch with SigLIP2">
+  <img src="https://img.shields.io/badge/External_ROC_AUC-0.9917-6D4AFF" alt="External ROC AUC 0.9917">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-00C878" alt="MIT License"></a>
+</p>
+
+---
 
 Detect AI-generated images even after common real-world transformations such as JPEG compression,
 blur, resizing, noise, colour shifts, and cropping. Given an image, the detector returns
@@ -18,9 +42,6 @@ and a live vertical-video demo.
 | Input | An image or a directory of images |
 | Output | A probability from 0 (real) to 1 (AI-generated) |
 | Main metric | ROC AUC, reported clean and by transform/severity |
-
-**Start here:** [run the detector](#quick-start) · [review the results](results/RESULTS.md) ·
-[open the technical report](docs/REPORT.md) · [run the web demo](project_demo/README.md)
 
 ## How it works
 
