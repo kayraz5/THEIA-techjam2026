@@ -317,8 +317,10 @@ results/        CSVs, heatmaps, contact sheets, RESULTS.md; the two committed he
 requirements-lock.txt   exact versions used for every reported number
 ```
 
-## Team and contributions
+## Team
 
-<!-- TODO before submission: one line per team member. -->
-- Chin Mun Yau — spec, data plumbing, model, eval harness, experiment programme (issues #1–#25).
-- *(other members: to be added)*
+- Chin Mun Yau
+- Kayra
+- Adam
+- Boey
+- Verlin
